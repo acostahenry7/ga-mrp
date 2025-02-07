@@ -13,7 +13,7 @@ const DtFilter = () => {
   };
 
   return (
-    <DtFilterWrapper>
+    <DtFilterWrapper className="">
       <FilterWrapper>
         <label htmlFor="">Búsqueda</label>
         <input className="filter-input" placeholder="Buscar..." />
@@ -48,7 +48,7 @@ const DtFilter = () => {
               </select>
             </div>
           </div>
-          <div className="flex items-center">
+          {/* <div className="flex items-center">
             <label className="w-12">Hasta</label>
             <div>
               <select className="filter-input ml-2" name="" id="">
@@ -68,11 +68,11 @@ const DtFilter = () => {
                   ))}
               </select>
             </div>
-          </div>
+          </div> */}
         </div>
       </FilterWrapper>
 
-      <div className="self-end mb-1 w-full sm:w-[172px]">
+      <div className="self-end justify-end mb-1 w-full sm:w-[172px]">
         <Button
           title={"Buscar"}
           variant="light"

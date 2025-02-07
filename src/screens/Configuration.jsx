@@ -17,7 +17,7 @@ const Configuration = () => {
     <div>
       <Header title={"CONFIGURACIÓN"} />
       {items.map(({ label, icon, path }) => (
-        <ConfigCard label={label} icon={icon} path={path} />
+        <ConfigCard key={label} label={label} icon={icon} path={path} />
       ))}
     </div>
   );

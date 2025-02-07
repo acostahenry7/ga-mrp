@@ -22,7 +22,13 @@ const Nav = ({ companyName, userName }) => {
       {/* Mobile Navigation */}
       <div className="">
         <div className="flex md:hidden justify-between items-center">
-          <img src={logo} alt="logo" width={50} height={50} />
+          <img
+            src={logo}
+            alt="logo"
+            width={50}
+            height={50}
+            onClick={() => navigate("/")}
+          />
           <h4 className="font-roboto text-dark-gray font-base text-xl">
             {companyName || "LASA MOTORS"}
           </h4>
@@ -64,7 +70,13 @@ const Nav = ({ companyName, userName }) => {
             <h4 className="text-2xl">{userName || "Rafael Espinosa"}</h4>
           </div>
           <ul className="mt-8 flex flex-col gap-6">
-            <li className="flex cursor-pointer ">
+            <li
+              className="flex cursor-pointer "
+              onClick={() => {
+                navigate("/settings");
+                setToggleNav(false);
+              }}
+            >
               <FiTool size={24} />
               <p className="ml-4 text-[#C5C9D3] hover:shadow-lg shadow-white">
                 Configuración

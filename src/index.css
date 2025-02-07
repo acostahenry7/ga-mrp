@@ -29,6 +29,18 @@ body {
     @apply h-[55px] lg:w-[372px] w-full bg-transparent border border-slate-300 rounded-full placeholder:text-[#828080] text-lg px-4 font-semibold tracking-wider focus:outline-slate-400 outline-offset-2 outline-4 box-border;
   }
 
+  .form-section {
+    @apply flex-1 py-2.5 min-w-[250px] px-0.5;
+  }
+
+  .form-label {
+    @apply text-text-primary font-roboto font-medium tracking-wide;
+  }
+
+  .form-input {
+    @apply mt-1.5 rounded-2xl border border-[#D4D4D4] w-full bg-transparent font-roboto h-[52px] focus:outline-blue-300 active:outline-blue-300 outline-offset-2 text-[#928C8C] px-5 font-medium tracking-wide box-border;
+  }
+
   .input-error {
     @apply ml-4 text-red-500 font-medium absolute mt-[54px] text-sm;
   }

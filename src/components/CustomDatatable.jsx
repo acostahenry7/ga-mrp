@@ -1,7 +1,9 @@
 import React from "react";
 import DataTable from "react-data-table-component";
+import { GiEmptyWoodBucket } from "react-icons/gi";
+import { DNA } from "react-loader-spinner";
 
-const CustomDatatable = ({ data, columns }) => {
+const CustomDatatable = ({ data, columns, isLoading, shadow }) => {
   //rows, headCells, cells
   const tableStyles = {
     responsiveWrapper: {
@@ -9,7 +11,7 @@ const CustomDatatable = ({ data, columns }) => {
         marginTop: 12,
         borderTopLeftRadius: 12,
         borderTopRightRadius: 12,
-        boxShadow: "0 -6px 15px 0 rgba(0, 0, 0, 0.1)",
+        boxShadow: shadow == true ? "0 -6px 15px 0 rgba(0, 0, 0, 0.1)" : "",
         backgroundColor: "#F2F5FF",
       },
     },
@@ -25,7 +27,7 @@ const CustomDatatable = ({ data, columns }) => {
       style: {
         backgroundColor: "black",
         color: "#F2F5FF",
-        fontSize: "16px",
+        fontSize: 13,
         fontWeight: 500,
         height: 68,
         fontWeight: 400,
@@ -37,7 +39,7 @@ const CustomDatatable = ({ data, columns }) => {
         height: 45,
         backgroundColor: "#F2F5FF",
         fontFamily: "Poppins",
-        fontSize: 15,
+        fontSize: 13,
         color: "#828080",
         fontWeight: 400,
       },
@@ -55,6 +57,17 @@ const CustomDatatable = ({ data, columns }) => {
         fontSize: 16,
       },
     },
+    noData: {
+      style: {
+        backgroundColor: "#F2F5FF",
+      },
+    },
+    progress: {
+      style: {
+        height: 160,
+        backgroundColor: "#F2F5FF",
+      },
+    },
   };
 
   return (
@@ -63,6 +76,22 @@ const CustomDatatable = ({ data, columns }) => {
       data={data}
       columns={columns}
       pagination
+      progressPending={isLoading}
+      progressComponent={
+        <DNA wrapperStyle={{ opacity: 0.6 }} height="80" width="80" />
+      }
+      noDataComponent={
+        <p className="py-11 flex flex-col items-center gap-3 opacity-70">
+          <GiEmptyWoodBucket color="lightgray" size={40} />
+          <span className="font-roboto text-slate-400 text-sm">
+            No se encontraron registros
+          </span>
+        </p>
+      }
+      //selectableRows
+      // onChangePage={() => {
+      //   console.log("hi");
+      // }}
     />
   );
 };

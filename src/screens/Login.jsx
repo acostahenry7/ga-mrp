@@ -22,7 +22,7 @@ const Login = () => {
     { label: "Gar 210", value: "DB_GA" },
     { label: "Motoplex", value: "DB_MP" },
     { label: "KTM Import", value: "DB_KI" },
-    { label: "Cycle Lab", value: "DB_CL" },
+    // { label: "Cycle Lab", value: "DB_CL" },
     { label: "Avant Auto TEST", value: "DB_AA_TEST" },
   ];
 
