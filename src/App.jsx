@@ -15,8 +15,6 @@ function App() {
     return <Login />;
   }
 
-  console.log(session);
-
   return (
     <div className="padding-wide overflow-hidden">
       <BrowserRouter>

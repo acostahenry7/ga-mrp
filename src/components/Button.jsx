@@ -8,6 +8,7 @@ const Button = ({
   height,
   onClick,
   icon,
+  type,
 }) => {
   const variants = {
     light: "border-black hover:bg-black hover:text-white",
@@ -19,6 +20,7 @@ const Button = ({
   return (
     <button
       onClick={onClick}
+      type={"button" || type}
       style={{ width: width || "172px", height: height || "40px" }}
       className={`relative flex items-center justify-center gap-2 font-poppins font-normal border-2 rounded-full duration-200 ${
         variants[variant || "light"]

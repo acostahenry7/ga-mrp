@@ -1,3 +1,5 @@
+import { getUrlParams } from "../helpers/api";
+
 async function createBrandApi(params, data) {
   return fetch(`${process.env.REACT_APP_API}/brand?schema=${params.schema}`, {
     headers: {
@@ -11,10 +13,12 @@ async function createBrandApi(params, data) {
     .catch((err) => err);
 }
 async function getBrandApi(params) {
-  return fetch(`${process.env.REACT_APP_API}/brand?schema=${params.schema}`)
+  return fetch(`${process.env.REACT_APP_API}/brand${getUrlParams(params)}`)
     .then((res) => res.json())
     .then((data) => data)
-    .catch((err) => err);
+    .catch((err) => {
+      throw err;
+    });
 }
 
 async function updateBrandApi(params, data) {

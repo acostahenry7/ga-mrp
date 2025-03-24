@@ -15,6 +15,7 @@ import { BiEdit, BiSearch, BiTrash } from "react-icons/bi";
 import Modal from "../components/Modal";
 import { useFormik } from "formik";
 import { DNA } from "react-loader-spinner";
+import useDisableScroll from "../hooks/useDisableScroll";
 
 const Brands = () => {
   const [brands, setBrands] = useState([]);
@@ -22,6 +23,7 @@ const Brands = () => {
   const [toggleSearch, setToggleSearch] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [currentBrand, setCurrentBrand] = useState({});
+  const [search, setSearch] = useState("");
   const { session } = useAuth();
   useEffect(() => {
     const getBrands = () => {
@@ -130,6 +132,13 @@ const Brands = () => {
     },
   ];
 
+  let filteredBrands = brands.filter((item) => {
+    let match = item.U_brand_code + item.U_description;
+    let searchedText = search.toLowerCase();
+    return match.toLowerCase().includes(searchedText);
+  });
+
+  useDisableScroll(isFormOpened);
   return (
     <div>
       {isFormOpened && (
@@ -147,7 +156,12 @@ const Brands = () => {
       <DtFilterWrapper>
         <FilterWrapper>
           <label htmlFor="">Búsqueda</label>
-          <input className="filter-input" placeholder="Buscar..." />
+          <input
+            className="filter-input"
+            placeholder="Buscar..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </FilterWrapper>
         <div className="self-end mb-1 w-full sm:w-[172px]">
           <Button
@@ -160,7 +174,11 @@ const Brands = () => {
         </div>
       </DtFilterWrapper>
 
-      <CustomDatatable columns={columns} data={brands} isLoading={isLoading} />
+      <CustomDatatable
+        columns={columns}
+        data={filteredBrands}
+        isLoading={isLoading}
+      />
     </div>
   );
 };

@@ -17,9 +17,9 @@ const CustomDatatable = ({ data, columns, isLoading, shadow }) => {
     },
     table: {
       style: {
-        padding: 0,
-        fontFamily: "Poppins",
-        fontSize: 16,
+        // padding: 0,
+        // fontFamily: "Poppins",
+        // fontSize: 10,
       },
     },
 
@@ -27,7 +27,7 @@ const CustomDatatable = ({ data, columns, isLoading, shadow }) => {
       style: {
         backgroundColor: "black",
         color: "#F2F5FF",
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: 500,
         height: 68,
         fontWeight: 400,
@@ -39,7 +39,7 @@ const CustomDatatable = ({ data, columns, isLoading, shadow }) => {
         height: 45,
         backgroundColor: "#F2F5FF",
         fontFamily: "Poppins",
-        fontSize: 13,
+        fontSize: 12,
         color: "#828080",
         fontWeight: 400,
       },
@@ -54,7 +54,7 @@ const CustomDatatable = ({ data, columns, isLoading, shadow }) => {
         // justifyContent: "center",
         // flexDirectios: "row-reverse",
         fontFamily: "Poppins",
-        fontSize: 16,
+        fontSize: 14,
       },
     },
     noData: {
@@ -88,6 +88,14 @@ const CustomDatatable = ({ data, columns, isLoading, shadow }) => {
           </span>
         </p>
       }
+      paginationComponentOptions={{
+        selectAllRowsItem: true,
+        selectAllRowsItemText: "Todos",
+      }}
+
+      // paginationRowsPerPageOptions={{
+      //   selectAllRowsItem: true,
+      // }}
       //selectableRows
       // onChangePage={() => {
       //   console.log("hi");

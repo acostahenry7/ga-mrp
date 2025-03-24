@@ -91,7 +91,7 @@ const Nav = ({ companyName, userName }) => {
       </div>
 
       {/* Desktop Navigation */}
-      <div className="hidden md:flex items-center justify-between">
+      <div className="hidden md:flex justify-between items-center">
         <img
           className="cursor-pointer"
           onClick={() => navigate("/")}

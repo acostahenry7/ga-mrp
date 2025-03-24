@@ -7,7 +7,8 @@ function getSuggestedAmount(data) {
   const stock = parseFloat(data.inv_stock) + parseFloat(data.inv_transit);
   //DEMANDA PROMEDIO
   const avgDemand =
-    data.amounts.reduce((acc, i) => acc + parseInt(i), 0) / data.amounts.length;
+    data.amounts?.reduce((acc, i) => acc + parseInt(i), 0) /
+    data.amounts?.length;
   //VARIACION VENTAS
   const salesVariance = getPVariance(data.amounts);
 
@@ -26,19 +27,9 @@ function getSuggestedAmount(data) {
     avgDemand * parseFloat(data.brand.U_leadtime) + safetyStock;
 
   //SUGERIDO
-  const suggestedAmount =
-    reorderPoint - stock + avgDemand * parseFloat(data.brand.U_leadtime);
-
-  //   console.log({
-  //     serviceLevel: data.U_service_level,
-  //     stock,
-  //     avgDemand,
-  //     salesVariance,
-  //     standardDeviation,
-  //     safetyStock,
-  //     reorderPoint,
-  //     suggestedAmount,
-  //   });
+  const suggestedAmount = Math.round(
+    reorderPoint - stock + avgDemand * parseFloat(data.brand.U_leadtime)
+  );
 
   return {
     stock,
@@ -52,14 +43,16 @@ function getSuggestedAmount(data) {
 }
 
 function getPVariance(arr) {
-  const x = arr.reduce((acc, i) => acc + parseInt(i), 0) / arr.length;
+  if (!arr) return;
+
+  const x = arr?.reduce((acc, i) => acc + parseInt(i), 0) / arr?.length;
 
   let sum = 0;
   for (let i of arr) {
     sum += (i - x) * (i - x);
   }
 
-  return sum / arr.length;
+  return sum / arr?.length;
 }
 
 export { getSuggestedAmount };

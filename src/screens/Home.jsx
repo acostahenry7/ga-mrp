@@ -2,41 +2,106 @@ import React, { useEffect, useState } from "react";
 import Header from "../components/Header";
 import DtFilter from "../components/DtFilter";
 import CustomDatatable from "../components/CustomDatatable";
-import { getMrpApi, getStockSummaryApi } from "../api/mrp";
+import { Column, Table, AutoSizer } from "react-virtualized";
+import "react-virtualized/styles.css";
+import {
+  createMrpApi,
+  getCurrenciesApi,
+  getMrpApi,
+  getNextMrpApi,
+  getProvidersApi,
+  getStockSummaryApi,
+  removeMrpApi,
+  updateMrpApi,
+} from "../api/mrp";
 import { getBrandApi } from "../api/brand";
 import Modal from "../components/Modal";
 import { useFormik } from "formik";
+import * as Yup from "yup";
 import Button from "../components/Button";
 import useAuth from "../hooks/useAuth";
-import { BiSave } from "react-icons/bi";
 import { getSuggestedAmount } from "../helpers/math";
+import DtMenu from "../components/DtMenu";
+import { FiEdit, FiEye, FiPrinter, FiTrash } from "react-icons/fi";
+import { isEqual, orderBy } from "lodash";
+import {
+  currencyFormat,
+  getCurrentDate,
+  getLabelNameByDateEntity,
+} from "../helpers/uiFormat";
+import { BiBlock } from "react-icons/bi";
+import { generateReport } from "../reports";
+import SearchSelect from "../components/SearchSelect";
+import { FcUp } from "react-icons/fc";
+import { FaAngleDown, FaAngleUp } from "react-icons/fa";
+import { DNA, Oval } from "react-loader-spinner";
+import { PiFileDoc } from "react-icons/pi";
+import { createPurchaseOrderDraftApi } from "../api/PurchaseOderDraft";
+import useDisableScroll from "../hooks/useDisableScroll";
 
 const Home = () => {
   const { session } = useAuth();
   const [data, setData] = useState([]);
+  const [currentData, setCurrentData] = useState({});
   const [brands, setBrands] = useState([]);
+  const [providers, setProviders] = useState([]);
+  const [currencies, setCurrencies] = useState([]);
+  const [formMode, setFormMode] = useState("");
   const [isFormOpened, setIsFormOpened] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isRowLoading, setIsRowLoading] = useState(false);
+  const [currentCode, setCurrentCode] = useState(false);
+
+  const retrieveMrp = (params) => {
+    setIsLoading(true);
+    getMrpApi(params)
+      .then((res) => {
+        setData(res);
+      })
+      .catch((err) => {
+        console.log(err);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  };
+  const handleDelete = (mrpId) => {
+    removeMrpApi({ mrpId })
+      .then((res) => {
+        console.log(res);
+      })
+      .catch((err) => console.log(err))
+      .finally(() => {
+        retrieveMrp();
+      });
+  };
+
+  const filterForm = useFormik({
+    initialValues: {
+      searchField: "",
+      brandId: "",
+      targetYear: "",
+      targetMonth: "",
+    },
+    validateOnChange: false,
+    onSubmit: (values) => {
+      retrieveMrp(values);
+    },
+  });
 
   useEffect(() => {
-    const getData = () => {
-      getMrpApi().then((res) => {
-        setData(res);
-      });
-    };
-
-    getData();
+    retrieveMrp();
   }, []);
 
   useEffect(() => {
     const loadPreviousData = async () => {
-      const schema = session?.userData.companyDB;
       try {
-        const brandList = await getBrandApi({
-          schema,
-        });
-        console.log(brandList);
-
+        const brandList = await getBrandApi();
         setBrands(brandList);
+        const providersList = await getProvidersApi();
+        setProviders(providersList);
+        const currenciesList = await getCurrenciesApi();
+        setCurrencies(currenciesList);
       } catch (error) {
         console.log(error);
       }
@@ -45,14 +110,31 @@ const Home = () => {
     loadPreviousData();
   }, []);
 
-  const handleOpenForm = () => {
-    if (brands.length > 0) {
-      setIsFormOpened(true);
+  const handleOpenForm = (mode, row) => {
+    setFormMode(mode || "CREATE");
+    if (mode === "EDIT" || mode === "VIEW") {
+      setCurrentData(row);
     }
+    setIsFormOpened(true);
   };
 
   const handleCloseForm = () => {
     setIsFormOpened(false);
+    retrieveMrp();
+  };
+
+  const createDraftOrderhandler = (row) => {
+    setCurrentCode(row.Code);
+    setIsRowLoading(true);
+    createPurchaseOrderDraftApi({ mrpId: row.U_mrp_id }, row)
+      .then((res) => {
+        console.log(res);
+        retrieveMrp();
+        setIsRowLoading(false);
+      })
+      .catch((err) => {
+        console.log(err);
+      });
   };
 
   const columns = [
@@ -66,27 +148,32 @@ const Home = () => {
     },
     {
       name: "Marca",
-      selector: (i) => i.U_brand_name,
+      selector: (i) => i.brand_description,
     },
     {
       name: "Leadtime",
       selector: (i) => `${i.U_leadtime} meses`,
     },
     {
-      name: "Monto Sugerido",
+      name: "A pedir",
       selector: (i) => i.U_suggested_amount,
     },
     {
-      name: "Marca",
-      selector: (i) => i.U_brand_name,
+      name: "Costo pedido",
+      selector: (i) => (
+        <span className="font-medium">
+          {i.U_currency}
+          {currencyFormat(Math.round(i.U_price_total), false)}
+        </span>
+      ),
     },
-    {
-      name: "Período",
-      selector: (i) =>
-        `${i.U_start_month}/${i.U_start_year.slice(2)} - ${
-          i.U_end_month
-        }/${i.U_end_year.slice(2)}`,
-    },
+    // {
+    //   name: "Período",
+    //   selector: (i) =>
+    //     `${i.U_start_month}/${i.U_start_year.slice(2)} - ${
+    //       i.U_end_month
+    //     }/${i.U_end_year.slice(2)}`,
+    // },
     {
       name: "Fecha creación",
       selector: (i) => {
@@ -102,23 +189,119 @@ const Home = () => {
       },
     },
     {
-      name: "Marca",
+      name: "Estatus",
+      selector: (i) => {
+        let color = "";
+        let label = "";
+        switch (i.U_status) {
+          case "OPENED":
+            color = "#39be39";
+            label = "Abierto";
+            break;
+          case "CLOSED":
+            color = "#c94747";
+            label = "Cerrado";
+            break;
+          case "CANCELED":
+            color = "#796e6e";
+            label = "Cancelado";
+            break;
+
+          default:
+            break;
+        }
+
+        return (
+          <span
+            className="px-1 py-0.5 text-white rounded-full absolute top-[14px] text-[10px]"
+            style={{ backgroundColor: color }}
+          >
+            {label}
+          </span>
+        );
+      },
+    },
+    {
+      name: "Creado por",
       selector: (i) => i.U_created_by,
     },
     {
+      name: "Modificado por",
+      selector: (i) => i.U_last_modified_by,
+    },
+    {
       name: "Acciones",
-      selector: (i) => <span>menu</span>,
+      cell: (row) => {
+        const options = [
+          {
+            label: "Editar",
+            icon: <FiEdit color="#7c7c22" />,
+            action: () => {
+              handleOpenForm("EDIT", row);
+            },
+          },
+          {
+            label: "Imprimir",
+            icon: <FiPrinter color="rgb(64 112 133)" />,
+            action: () => {
+              let date = getCurrentDate();
+              generateReport({ fileName: `sugerido-${date}`, ...session }, row);
+            },
+          },
+          {
+            label: "Generar pedido SAP",
+            icon: <PiFileDoc color="darkblue" />,
+            action: () => createDraftOrderhandler(row),
+          },
+          {
+            label: "Cancelar",
+            icon: <BiBlock color="red" />,
+            action: () => handleDelete(row.U_mrp_id),
+          },
+        ];
+
+        return [
+          <DtMenu options={options} status={row.U_status} />,
+          <>
+            {isRowLoading && currentCode == row.Code && (
+              <Oval
+                visible={true}
+                height="15"
+                width="15"
+                strokeWidth={5}
+                color="rgb(217, 30, 30)"
+                secondaryColor="lightgray"
+                ariaLabel="oval-loading"
+                wrapperStyle={{}}
+                wrapperClass="ml-4"
+              />
+            )}
+          </>,
+        ];
+      },
     },
   ];
+
+  const filterData = data?.filter((item) => {
+    const searchText = filterForm.values.searchField.toLocaleLowerCase();
+    const textMatch = item.U_description.toLocaleLowerCase();
+
+    return textMatch.includes(searchText);
+  });
+
+  useDisableScroll(isFormOpened);
 
   return (
     <>
       {isFormOpened && (
         <MrpForm
           session={session}
-          data={{}}
+          data={currentData}
+          mode={formMode}
           onClose={handleCloseForm}
           brands={brands}
+          providers={providers}
+          currencies={currencies}
         />
       )}
       <Header
@@ -126,34 +309,290 @@ const Home = () => {
         btnTitle={"Crear Sugerido"}
         btnOnClick={() => handleOpenForm()}
       />
-      <DtFilter />
-      <CustomDatatable columns={columns} data={data} />
+      <DtFilter form={filterForm} data={{ brands, providers }} />
+      <CustomDatatable
+        columns={columns}
+        data={filterData}
+        isLoading={isLoading}
+      />
     </>
   );
 };
 
-const MrpForm = ({ session, data, onClose, brands }) => {
-  let isPrevData = Object.entries(data).length > 0;
+const MrpForm = ({
+  session,
+  data,
+  onClose,
+  brands,
+  providers,
+  currencies,
+  mode,
+}) => {
+  let isCreate = mode == "CREATE";
 
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
 
   //const [brands, setBrands] = useState([]);
-  const [brandName, setBrandName] = useState(brands[0].U_description);
-  const [stockSummary, setStockSummary] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [months, setMonths] = useState([]);
-  const form = useFormik({
-    initialValues: {
+
+  const [formCurr, setFormCurr] = useState([...currencies]);
+
+  const getInitialValues = () => {
+    // if (providers[0].Currency != "##") {
+    //   // setFormCurr((prev) =>
+    //   //   prev.filter((item) => item.CurrCode == providers[0]?.Currency)
+    //   // );
+    // }
+    const targetCurrency = currencies?.find(
+      (item) => item.CurrCode == providers[0]?.Currency
+    )?.CurrCode;
+
+    const fields = {
       mrpCode: "",
-      description: "",
-      brandId: brands[0].U_brand_id,
-      currency: "DOP",
+      description: `SUGERIDO ${getLabelNameByDateEntity(
+        "months",
+        currentMonth
+      )} ${currentYear} `,
+      brandId: brands[0]?.U_brand_id,
+      providerCode: providers[0]?.CardCode,
+      currency:
+        providers[0]?.Currency == "##"
+          ? currencies[0].CurrCode
+          : targetCurrency,
       year: currentYear,
       month: currentMonth,
       brandName: "",
+    };
+
+    if (mode != "CREATE") {
+      fields.mrpCode = data?.U_mrp_code;
+      fields.description = data?.U_description;
+      fields.brandId = data?.U_brand_id;
+      fields.providerCode = data?.U_provider_code;
+      fields.currency = data?.U_currency;
+
+      //Year and Month
+      const baseDate = data?.U_created_date.split(" ")[0];
+      fields.year = baseDate.split("-")[0];
+      fields.month = baseDate.split("-")[1];
+    }
+
+    return fields;
+  };
+
+  const [brandName, setBrandName] = useState(brands[0]?.U_description);
+  const [stockSummary, setStockSummary] = useState([]);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [showDetail, setShowDetail] = useState(false);
+  const [detailData, setDetailData] = useState([]);
+  const [months, setMonths] = useState([]);
+  const [currentOrder, setCurrentOrder] = useState({});
+  const [currencySymbol, setCurrencySymbol] = useState("RD$");
+  const [isFormLoading, setIsFormLoading] = useState(false);
+
+  const form = useFormik({
+    initialValues: getInitialValues(),
+    validationSchema: Yup.object({
+      description: Yup.string().required("Este campo es requerido"),
+      brandId: Yup.string().required("Este campo es requerido"),
+      providerCode: Yup.string().required("Este campo es requerido"),
+      currency: Yup.string().required("Este campo es requerido"),
+    }),
+    validateOnChange: false,
+    onSubmit: (values) => {
+      const getRowAmount = (item) => {
+        let val = 0;
+        if (item.order_amount) {
+          val = parseFloat(item.order_amount);
+        } else {
+          let currentBrand = brands.find(
+            (item) => item.U_brand_id == form.values.brandId
+          );
+          let { suggestedAmount } = getSuggestedAmount({
+            ...item,
+            brand: currentBrand,
+          });
+          val = suggestedAmount;
+        }
+
+        return val;
+      };
+
+      const getRowPrice = (item) => {
+        let val = 0;
+        if (item.price) {
+          val = parseFloat(item.price);
+        } else {
+          val = parseFloat(item.last_purchase_price);
+        }
+        return val * getRowAmount(item);
+      };
+
+      const getCalculations = (item) => {
+        const currentBrand = brands.find(
+          (item) => item.U_brand_id == form.values.brandId
+        );
+        const calcs = getSuggestedAmount({
+          ...item,
+          brand: currentBrand,
+        });
+
+        return {
+          ...calcs,
+          leadtimeVariance: currentBrand.U_leadtime_variance_index,
+        };
+      };
+
+      let providerName = providers.find(
+        (p) => p.CardCode == values.providerCode
+      )?.CardName;
+
+      if (isCreate) {
+        console.log(stockSummary);
+        const mrp = {
+          mrpCode: values.mrpCode,
+          description: values.description,
+          brandId: values.brandId,
+          providerCode: values.providerCode,
+          providerName,
+          priceTotal: Math.round(
+            stockSummary.reduce((acc, item) => acc + getRowPrice(item), 0)
+          ),
+          currency: values.currency,
+          leadtime: 6,
+          suggestedAmount: Math.round(
+            stockSummary.reduce((acc, item) => acc + getRowAmount(item), 0)
+          ),
+          startYear: values.year - 1,
+          startMonth: values.month,
+          endYear: values.year,
+          endMonth: values.month,
+          createdDate: getCurrentDate(),
+          lastModifiedDate: getCurrentDate(),
+          createdBy: session?.userData?.UserName,
+          lastModifiedBy: session?.userData?.UserName,
+          status: "OPENED",
+          printedTimes: 0,
+          detail: stockSummary.map((item) => {
+            let sales = {};
+            let i = 0;
+            for (let t of item.amounts) {
+              let suffix = `${i + 1}`.padStart(2, "0");
+              sales[`sales${suffix}`] = t;
+              i++;
+            }
+
+            return {
+              itemCode: item.item_code,
+              factoryItemCode: item.factory_item_code || "",
+              description: item.description?.replace(/'/g, "''"),
+              alternativeReferences: "",
+              model: item.model?.replace(/'/g, "''") || "",
+              invStock: parseFloat(item.inv_stock),
+              invTransit: parseFloat(item.inv_transit),
+              frequency: "MEDIA",
+              rating: "B",
+              price: parseFloat(item.last_purchase_price),
+              actualPrice: parseFloat(item.price || item.last_purchase_price),
+              currency: values.currency,
+              avgDemand: getCalculations(item).avgDemand,
+              demandVariance: getCalculations(item).salesVariance,
+              leadtimeVariance: getCalculations(item).leadtimeVariance,
+              standardDeviation: getCalculations(item).standardDeviation,
+              safetyStock: getCalculations(item).safetyStock,
+              reorderPoint: getCalculations(item).reorderPoint,
+              suggestedAmount: getCalculations(item).suggestedAmount,
+              orderAmount: getRowAmount(item),
+              lineTotal: getRowPrice(item),
+              ...sales,
+              isIncluded: "Y",
+            };
+          }),
+        };
+
+        console.log(mrp);
+        //Call creation Api
+        setIsFormLoading(true);
+
+        createMrpApi(mrp)
+          .then((res) => {
+            console.log(res);
+          })
+          .catch((err) => console.log(err))
+          .finally(() => {
+            setIsFormLoading(false);
+            onClose();
+          });
+      } else {
+        const updateMrp = {
+          description: values.description,
+          priceTotal: Math.round(
+            detailData.reduce((acc, item) => acc + getRowPrice(item), 0)
+          ),
+          suggestedAmount: Math.round(
+            detailData.reduce((acc, item) => acc + getRowAmount(item), 0)
+          ),
+          currency: values.currency,
+          lastModifiedBy: session?.userData?.UserName,
+          detail: detailData.map((item) => {
+            return {
+              itemCode: item.item_code,
+              orderAmount: parseFloat(item.order_amount),
+              price: parseFloat(item.last_purchase_price),
+              actualPrice: parseFloat(item.price || item.last_purchase_price),
+              lineTotal: getRowPrice(item),
+            };
+          }),
+        };
+
+        setIsFormLoading(true);
+        updateMrpApi({ mrpId: data.U_mrp_id }, updateMrp)
+          .then((res) => {
+            console.log(res);
+          })
+          .catch((err) => console.log(err))
+          .finally(() => {
+            setIsFormLoading(false);
+            onClose();
+          });
+      }
     },
   });
+
+  // const currentCurrency = providers.find(
+  //   (item) =>
+  //     item.CardCode === form.values?.providerCode ||
+  //     form.initialValues.providerCode
+  // )?.Currency;
+
+  const handleMrpCodeChange = (brandId) => {
+    getNextMrpApi({ brandId }).then((res) => {
+      form.setFieldValue("mrpCode", res.next);
+    });
+  };
+
+  useEffect(() => {
+    if (!isCreate) {
+      const newData = [];
+
+      for (let item of data.detail) {
+        let obj = {};
+        Object.entries(item).forEach(([key, value]) => {
+          let actualKey = key.replace("U_", "");
+
+          obj[actualKey] = value;
+        });
+
+        newData.push(obj);
+      }
+      console.log(newData);
+
+      setDetailData(newData);
+    } else {
+      handleMrpCodeChange(form.values.brandId);
+    }
+  }, []);
 
   // useEffect(() => {
   //   const loadPreviousData = async () => {
@@ -162,7 +601,6 @@ const MrpForm = ({ session, data, onClose, brands }) => {
   //       const brandList = await getBrandApi({
   //         schema,
   //       });
-  //       console.log(brandList);
 
   //       setBrands(brandList);
   //     } catch (error) {
@@ -173,16 +611,18 @@ const MrpForm = ({ session, data, onClose, brands }) => {
   //   loadPreviousData();
   // }, []);
 
-  const currencies = [
-    {
-      label: "Dólar Estadounidense",
-      value: "USD",
-    },
-    {
-      label: "Peso Dominicano",
-      value: "DOP",
-    },
-  ];
+  const hadlePriceSuggestion = (row) => {
+    let currentBrand = brands.find(
+      (item) => item.U_brand_id == form.values.brandId
+    );
+
+    const { suggestedAmount, reorderPoint, avgDemand } = getSuggestedAmount({
+      ...row,
+      brand: currentBrand,
+    });
+
+    return { suggestedAmount, reorderPoint, avgDemand };
+  };
 
   useEffect(() => {
     const loadPreviousData = async () => {
@@ -191,15 +631,33 @@ const MrpForm = ({ session, data, onClose, brands }) => {
         setIsLoading(true);
 
         const stockSummary = await getStockSummaryApi({
-          schema,
           year: form.values.year,
           month: form.values.month,
           brand: brandName,
         });
         setIsLoading(false);
-        console.log(stockSummary.groupedData[0]);
 
-        setStockSummary(stockSummary.groupedData);
+        const arr = stockSummary.groupedData.map((item) => ({
+          ...item,
+          avgDemand: hadlePriceSuggestion(item).avgDemand,
+          invTrans: parseFloat(item.inv_stock) + parseFloat(item.inv_transit),
+          reorderPoint: hadlePriceSuggestion(item).reorderPoint,
+          order_amount: hadlePriceSuggestion(item).suggestedAmount,
+          price: parseFloat(item.last_purchase_price),
+          suggestedAmount: hadlePriceSuggestion(item).suggestedAmount,
+          lineTotal: (() => {
+            let price = item.price || item.last_purchase_price;
+            let amount =
+              item.order_amount || hadlePriceSuggestion(item).suggestedAmount;
+
+            return currencyFormat(
+              parseFloat(price) * parseFloat(amount),
+              false
+            );
+          })(),
+        }));
+
+        setStockSummary(arr);
         setMonths(stockSummary.months);
       } catch (error) {
         console.log(error);
@@ -210,30 +668,48 @@ const MrpForm = ({ session, data, onClose, brands }) => {
   }, [brandName, form.values.year, form.values.month]);
 
   const handleUpdate = (id, value, type) => {
-    const arr = [...stockSummary];
+    let arr = [];
+    if (isCreate) {
+      arr = [...stockSummary];
+    } else {
+      arr = [...detailData];
+    }
 
     const index = arr.findIndex((item) => item.item_code == id);
 
     switch (type) {
       case "amount":
         arr[index].order_amount = value;
+
         break;
       case "price":
         arr[index].price = value;
+
         break;
 
       default:
         break;
     }
 
-    setStockSummary(arr);
+    isCreate ? setStockSummary(arr) : setDetailData(arr);
 
     setTimeout(() => {
-      document.getElementById(type + arr[index + 1].item_code)?.focus();
+      document.getElementById(type + arr[index + 1]?.item_code)?.focus();
     }, 5);
   };
 
   const CustomInput = ({ row, initialValue, type }) => {
+    // if (type === "amount_edit") {
+    //   let arr = {};
+    //   Object.entries(row).forEach(([key, value]) => {
+    //     let actualKey = key.replace("U_", "");
+
+    //     arr[actualKey] = value;
+    //   });
+
+    //   row = { ...arr };
+    // }
+
     const [fieldValue, setFieldValue] = useState(initialValue);
 
     useEffect(() => {
@@ -282,133 +758,399 @@ const MrpForm = ({ session, data, onClose, brands }) => {
     );
   };
 
-  const hadlePriceSuggestion = (row) => {
-    let currentBrand = brands.find(
-      (item) => item.U_brand_id == form.values.brandId
-    );
-
-    const { suggestedAmount, reorderPoint, avgDemand } = getSuggestedAmount({
-      ...row,
-      brand: currentBrand,
-    });
-
-    return { suggestedAmount, reorderPoint, avgDemand };
-  };
-
   const getSalesPerMonthCols = () => {
     const arr = [];
 
     months.forEach((month, index) => {
-      arr.push({
-        name: month,
-        selector: (row) => row.amounts[index],
-        width: "70px",
-      });
+      let suffix = `0${index + 1}`;
+      if (index + 1 > 9) {
+        suffix = `${index + 1}`;
+      }
+
+      // arr.push({
+      //   name: month,
+      //   selector: (row) =>
+      //     isCreate ? row.amounts[index] : row[`sales_${suffix}`],
+      //   width: "70px",
+      // });
+
+      arr.push(
+        <Column
+          label={`${month}`}
+          dataKey="description"
+          cellRenderer={({ rowData: row }) =>
+            isCreate ? row.amounts[index] : row[`sales_${suffix}`]
+          }
+        />
+      );
     });
 
-    return arr;
+    return showDetail ? arr : [];
   };
 
-  const columns = [
-    {
-      name: "No. artículo",
-      selector: (row) => row.item_code,
-      width: "200px",
-    },
-    {
-      name: "Descripción",
-      selector: (row) => row.description,
-      width: "200px",
-    },
-    {
-      name: "Modelo",
-      selector: (row) => row.model,
-      width: "110px",
-    },
-    {
-      name: "INV + TRAN",
-      selector: (row) =>
-        parseFloat(row.inv_stock) + parseFloat(row.inv_transit),
-      width: "110px",
-    },
-    ...getSalesPerMonthCols(),
-    {
-      name: "Demanda",
-      selector: (row) =>
-        Math.round(hadlePriceSuggestion(row).avgDemand).toFixed(0),
-      width: "100px",
-    },
-    {
-      name: "Punto reorden",
-      selector: (row) => Math.round(hadlePriceSuggestion(row).reorderPoint),
-      width: "100px",
-    },
-    {
-      name: "Sugerido",
-      selector: (row) => hadlePriceSuggestion(row).suggestedAmount, //Is gone be a function with the calcs,
-    },
-    // {
-    //   name: "A pedir",
-    //   selector: (row) =>
-    //     row.order_amount || hadlePriceSuggestion(row).suggestedAmount,
-    // },
+  const totalCreationMrp = stockSummary.reduce((acc, item) => {
+    let price = item.price || item.last_purchase_price;
+    let amount =
+      item.order_amount || hadlePriceSuggestion(item).suggestedAmount;
 
-    {
-      name: "A pedir",
-      selector: (row) => {
-        //console.log(hadlePriceSuggestion(row).suggestedAmount);
+    return acc + parseFloat(price) * parseFloat(amount);
+  }, 0);
 
+  const totalEditionMrp = detailData.reduce((acc, item) => {
+    let price = item.price || item.last_purchase_price;
+    let amount = item.order_amount;
+
+    return acc + parseFloat(price) * parseFloat(amount);
+  }, 0);
+
+  const sortDtData = (key) => {
+    let arr = [];
+    if (isCreate) {
+      arr = [...stockSummary];
+    } else {
+      arr = [...detailData];
+    }
+
+    let order = "asc";
+    if (currentOrder.field == key) {
+      setCurrentOrder({
+        field: key,
+        order: currentOrder.order == "asc" ? "desc" : "asc",
+      });
+      order = currentOrder.order == "asc" ? "desc" : "asc";
+    } else {
+      setCurrentOrder({
+        field: key,
+        order: "asc",
+      });
+    }
+
+    arr = orderBy(arr, key, order);
+
+    isCreate ? setStockSummary(arr) : setDetailData(arr);
+  };
+
+  const headerRenderer = (dataKey, label) => {
+    let up = "gray";
+    let down = "gray";
+    if (dataKey == currentOrder.field) {
+      if (currentOrder.order == "asc") {
+        up = "white";
+        down = "gray";
+      } else {
+        up = "gray";
+        down = "white";
+      }
+    }
+
+    const iconSize = 10;
+    return (
+      <div key={dataKey} className="flex items-center gap-1">
+        <span
+          onClick={() => {
+            sortDtData(dataKey);
+          }}
+        >
+          {label}
+        </span>
+        <div>
+          <FaAngleUp color={up} size={iconSize} />
+          <FaAngleDown color={down} size={iconSize} />
+        </div>
+      </div>
+    );
+  };
+
+  const firstDefaultCols = [
+    <Column
+      label="Codigo"
+      dataKey="item_code"
+      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
+      //width={100}
+      // headerRenderer={({ label }) => (
+      //   <span style={{ margin: 0 }}>{label}</span>
+      // )}
+    />,
+    <Column
+      label="Description"
+      dataKey={isCreate ? "description" : "detail_description"}
+      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
+      cellRenderer={({ rowData: row }) =>
+        isCreate ? row.description : row.detail_description
+      }
+    />,
+    <Column
+      label="Modelo"
+      dataKey="model"
+      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
+    />,
+    <Column
+      label="Inventario"
+      dataKey="inv_stock"
+      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
+      cellRenderer={(row) => {
+        return parseFloat(row.rowData.inv_stock);
+      }}
+    />,
+    <Column
+      label="Tránsito"
+      dataKey="inv_transit"
+      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
+      cellRenderer={(row) => {
+        return parseFloat(row.rowData.inv_transit);
+      }}
+    />,
+    isCreate && (
+      <Column
+        label="INV + TRAN"
+        dataKey="invTrans"
+        headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
+        // cellRenderer={(row) => {
+        //   return parseFloat(row.rowData.invTrans);
+        // }}
+      />
+    ),
+  ];
+  const secondDefaultCols = [
+    <Column
+      label="Promedio venta"
+      dataKey={isCreate ? "avgDemand" : "avg_demand"}
+      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
+      cellRenderer={({ rowData: row, dataKey }) =>
+        currencyFormat(Math.trunc(row[dataKey]), false)
+      }
+      // cellRenderer={({ rowData: row }) =>
+      //   isCreate
+      //     ? Math.round(hadlePriceSuggestion(row).avgDemand).toFixed(0)
+      //     : Math.round(parseFloat(row.avg_demand)).toFixed(0)
+      // }
+    />,
+    <Column
+      label="Punto reorden"
+      dataKey={isCreate ? "reorderPoint" : "reorder_point"}
+      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
+      cellRenderer={({ rowData: row }) =>
+        isCreate
+          ? Math.round(hadlePriceSuggestion(row).reorderPoint)
+          : parseFloat(row.reorder_point).toFixed(0)
+      }
+    />,
+    <Column
+      label="Sugerido"
+      dataKey={isCreate ? "suggestedAmount" : "detail_suggested_amount"}
+      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
+      cellRenderer={({ rowData: row }) =>
+        isCreate
+          ? Math.round(hadlePriceSuggestion(row).suggestedAmount)
+          : Math.round(Number(row.detail_suggested_amount))
+      }
+    />,
+    <Column
+      label="A pedir"
+      dataKey={"order_amount"}
+      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
+      width={130}
+      columnData={"order"}
+      cellRenderer={({ rowData: row }) => {
         return (
-          <CustomInput
-            row={row}
-            type={"amount"}
-            initialValue={
-              row.order_amount || hadlePriceSuggestion(row).suggestedAmount
-            }
-          />
+          <div data-id="order">
+            <CustomInput
+              row={row}
+              type={"amount"}
+              initialValue={
+                row?.order_amount || hadlePriceSuggestion(row).suggestedAmount
+              }
+            />
+          </div>
         );
-      },
-      width: "160px",
-    },
-    {
-      name: "Ult. Precio compra",
-      selector: (row) => parseFloat(row.last_purchase_price).toFixed(2),
-      width: "100px",
-    },
-    {
-      name: "Precio",
-      selector: (row) => (
+      }}
+    />,
+    <Column
+      label="Ult. Precio compra"
+      dataKey="last_purchase_price"
+      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
+      cellRenderer={({ rowData: row }) =>
+        parseFloat(row.last_purchase_price).toFixed(2)
+      }
+    />,
+    <Column
+      label="Precio"
+      dataKey="price"
+      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
+      width={130}
+      cellRenderer={({ rowData: row }) => (
         <CustomInput
           row={row}
           type={"price"}
           initialValue={
-            row.price || parseFloat(row.last_purchase_price).toFixed(2)
+            parseFloat(row.price) > 0
+              ? parseFloat(row.price)
+              : parseFloat(row.last_purchase_price)
           }
         />
-      ),
-      width: "160px",
-    },
-    {
-      name: "Total linea",
-      selector: (row) => {
-        if (row.price && row.order_amount) {
-          return parseFloat(row.price) * parseFloat(row.order_amount);
-        } else {
-          return (
-            parseFloat(row.last_purchase_price) *
-            hadlePriceSuggestion(row).suggestedAmount
-          ).toFixed(2);
-        }
-      },
-      width: "100px",
-    },
+      )}
+    />,
+    <Column
+      label="Total"
+      dataKey="lineTotal"
+      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
+      cellRenderer={({ rowData: row, dataKey }) => {
+        let price = row.price || row.last_purchase_price;
+        let amount =
+          row.order_amount || hadlePriceSuggestion(row).suggestedAmount;
+
+        return currencyFormat(parseFloat(price) * parseFloat(amount), false);
+
+        // if (row.price || row.order_amount) {
+        //   return parseFloat(row.price) * parseFloat(row.order_amount);
+        // } else {
+        //   return (
+        //     parseFloat(row.last_purchase_price) *
+        //     hadlePriceSuggestion(row).suggestedAmount
+        //   );
+        // }
+      }}
+      //   if (row.price && row.order_amount) {
+      //     return parseFloat(row.price) * parseFloat(row.order_amount);
+      //   } else {
+      //     return (
+      //       parseFloat(row.last_purchase_price) *
+      //       hadlePriceSuggestion(row).suggestedAmount
+      //     ).toFixed(2);
+      //   }
+      // }}
+    />,
+    // {
+    //   name: "Demanda",
+    //   selector: (row) =>
+    //     isCreate
+    //       ? Math.round(hadlePriceSuggestion(row).avgDemand).toFixed(0)
+    //       : Math.round(row.avg_demand).toFixed(0),
+    //   width: "100px",
+    // },
+    // {
+    //   name: "Punto reorden",
+    //   selector: (row) =>
+    //     isCreate
+    //       ? Math.round(hadlePriceSuggestion(row).reorderPoint)
+    //       : Number(row.reorder_point).toFixed(0),
+    //   width: "100px",
+    // },
+    // {
+    //   name: "Sugerido",
+    //   selector: (row) =>
+    //     isCreate
+    //       ? hadlePriceSuggestion(row).suggestedAmount
+    //       : Number(row.detail_suggested_amount), //Is gone be a function with the calcs,
+    //   width: "100px",
+    // },
+    // // {
+    // //   name: "A pedir",
+    // //   selector: (row) => isCreate ?
+    // //     row.order_amount || hadlePriceSuggestion(row).suggestedAmount,
+    // // },
+
+    // {
+    //   name: "A pedir",
+    //   selector: (row) => {
+
+    //     return (
+    //       <CustomInput
+    //         row={row}
+    //         type={"amount"}
+    //         initialValue={
+    //           row.order_amount || hadlePriceSuggestion(row).suggestedAmount
+    //         }
+    //       />
+    //     );
+    //   },
+    //   width: "160px",
+    // },
+    // {
+    //   name: "Ult. Precio compra",
+    //   selector: (row) => parseFloat(row.last_purchase_price).toFixed(2),
+
+    //   width: "100px",
+    // },
+    // {
+    //   name: "Precio",
+    //   selector: (row) => (
+    //     <CustomInput
+    //       row={row}
+    //       type={"price"}
+    //       initialValue={
+    //         row.price || parseFloat(row.last_purchase_price).toFixed(2)
+    //       }
+    //     />
+    //   ),
+    //   width: "160px",
+    // },
+    // {
+    //   name: "Total linea",
+    //   selector: (row) => {
+    //     if (row.price && row.order_amount) {
+    //       return parseFloat(row.price) * parseFloat(row.order_amount);
+    //     } else {
+    //       return (
+    //         parseFloat(row.last_purchase_price) *
+    //         hadlePriceSuggestion(row).suggestedAmount
+    //       ).toFixed(2);
+    //     }
+    //   },
+    //   width: "100px",
+    // },
   ];
+  // const [columns, setColumns] = React.useState([
+  //   ...firstDefaultCols,
+  //   ...secondDefaultCols,
+  // ]);
+
+  const columns = [
+    ...firstDefaultCols,
+    ...getSalesPerMonthCols(),
+    ...secondDefaultCols,
+    // <Column label="Description" dataKey="description" />,
+    // <Column label="Description" dataKey="description" />,
+    // <Column label="Description" dataKey="description" />,
+    // <Column
+    //   // width={200}
+    //   label="Description"
+    //   dataKey=""
+    //   cellRenderer={(row) => {
+    //     return (
+    //       <p>
+    //         {isCreate
+    //           ? hadlePriceSuggestion(row.rowData).suggestedAmount
+    //           : Number(row.detail_suggested_amount)}
+    //       </p>
+    //     );
+    //   }}
+    // />,
+  ];
+
+  function toggleDetails() {
+    setShowDetail((prev) => !prev);
+    // if (showDetail == false) {
+    //   setIsLoading(true);
+    //   setColumns([
+    //     ...firstDefaultCols,
+    //     ...getSalesPerMonthCols(),
+    //     // ...secondDefaultCols,
+    //   ]);
+    //   setIsLoading(false);
+    // } else {
+    //   setColumns([
+    //     ...firstDefaultCols,
+    //     // ...secondDefaultCols
+    //   ]);
+    // }
+  }
 
   return (
     <Modal>
       <div>
         <h4 className="text-base font-semibold text-text-primary tracking-wide">
-          {isPrevData ? "EDITAR SUGERIDO" : "NUEVO SUGERIDO"}
+          {isCreate ? "NUEVO SUGERIDO" : "EDITAR SUGERIDO"}
         </h4>
         <div className="mt-4 max-sm:h-[50vh] h-[70vh] overflow-y-auto overflow-x-hidden">
           <div className="form-section">
@@ -416,23 +1158,56 @@ const MrpForm = ({ session, data, onClose, brands }) => {
               Marca
             </label>
             <select
-              className="form-input"
+              className={`form-input ${isCreate ? "" : "input-disabled"}`}
               value={form.values.brandId}
+              disabled={isCreate ? "" : true}
               onChange={(e) => {
                 form.setFieldValue("brandId", e.target.value);
                 let currentBrand = brands.find(
                   (item) => item.U_brand_id == e.target.value
                 );
                 setBrandName(currentBrand.U_description);
+                handleMrpCodeChange(e.target.value);
               }}
             >
               {/* <option value="">Todas las marcas</option> */}
               {brands?.map((item) => (
                 <option key={item.U_brand_id} value={item.U_brand_id}>
-                  {item.U_description}
+                  {item.U_brand_code} - {item.U_description}
                 </option>
               ))}
             </select>
+          </div>
+          <div className="form-section">
+            <label htmlFor="" className="form-label">
+              Proveedor
+            </label>
+            <SearchSelect
+              options={providers}
+              fields={{ key: "CardCode", value: "CardName", keyOnLabel: true }}
+              variant="INPUT"
+              defaultValue={form.initialValues?.providerCode || ""}
+              onChange={(item) => {
+                if (item?.CardCode) {
+                  form.setFieldValue("providerCode", item?.CardCode);
+                }
+                const targetCurr = providers.find(
+                  (p) => p.CardCode == item?.CardCode
+                )?.Currency;
+
+                if (targetCurr && targetCurr != "##") {
+                  setFormCurr(
+                    currencies.filter((item) => item.CurrCode == targetCurr)
+                  );
+                  setCurrencySymbol(
+                    currencies.find((item) => item.CurrCode == targetCurr)
+                      .DocCurrCod
+                  );
+                } else {
+                  setFormCurr([...currencies]);
+                }
+              }}
+            />
           </div>
 
           <div className="w-full flex gap-5 max-sm:gap-0 flex-wrap">
@@ -440,7 +1215,13 @@ const MrpForm = ({ session, data, onClose, brands }) => {
               <label htmlFor="" className="form-label">
                 Código
               </label>
-              <input type="text" className="form-input " />
+              <input
+                type="text"
+                className="form-input input-disabled"
+                value={form.values.mrpCode}
+                disabled
+                onChange={(e) => {}}
+              />
               {/* <span className="absolute right-8 top-14 text-[#B3B3B3] font-roboto font-medium tracking-wide">
                 meses
               </span> */}
@@ -449,7 +1230,22 @@ const MrpForm = ({ session, data, onClose, brands }) => {
               <label htmlFor="" className="form-label">
                 Descripción
               </label>
-              <input type="text" className="form-input" />
+              <div className="relative">
+                <input
+                  type="text"
+                  className="form-input"
+                  value={form.values.description}
+                  onChange={(e) =>
+                    form.setFieldValue(
+                      "description",
+                      e.target.value.toUpperCase()
+                    )
+                  }
+                />
+                <span className="absolute right-4 -top-8 input-error opacity-80">
+                  {form.errors.description}
+                </span>
+              </div>
             </div>
           </div>
           <div className="w-full flex gap-5 max-sm:gap-0 flex-wrap">
@@ -457,15 +1253,26 @@ const MrpForm = ({ session, data, onClose, brands }) => {
               <label htmlFor="" className="form-label">
                 Currency
               </label>
+
               <select
                 className="form-input"
                 value={form.values.currency}
-                onChange={(e) => form.setFieldValue("currency", e.target.value)}
+                onChange={(e) => {
+                  let currentCurrency = currencies.find(
+                    (item) => item.CurrCode == e.target.value
+                  );
+                  setCurrencySymbol(currentCurrency.DocCurrCod);
+                  form.setFieldValue("currency", e.target.value);
+                }}
                 name=""
                 id=""
               >
-                {currencies.map(({ label, value }) => {
-                  return <option value={value}>{label}</option>;
+                {formCurr.map(({ CurrCode, CurrName, DocCurrCod }, index) => {
+                  return (
+                    <option key={CurrCode} value={CurrCode}>
+                      {DocCurrCod} - {CurrName}
+                    </option>
+                  );
                 })}
               </select>
             </div>
@@ -476,8 +1283,9 @@ const MrpForm = ({ session, data, onClose, brands }) => {
                 </label>
 
                 <select
-                  className="form-input"
+                  className={`form-input ${isCreate ? "" : "input-disabled"}`}
                   value={form.values.year}
+                  disabled={isCreate ? "" : true}
                   onChange={(e) => form.setFieldValue("year", e.target.value)}
                   name=""
                   id=""
@@ -486,7 +1294,11 @@ const MrpForm = ({ session, data, onClose, brands }) => {
                     .fill(0)
                     .map((i, index) => {
                       let val = currentYear - index;
-                      return <option value={val}>{val}</option>;
+                      return (
+                        <option key={index} value={val}>
+                          {val}
+                        </option>
+                      );
                     })}
                 </select>
               </div>
@@ -495,7 +1307,8 @@ const MrpForm = ({ session, data, onClose, brands }) => {
                   Mes
                 </label>
                 <select
-                  className="form-input"
+                  className={`form-input ${isCreate ? "" : "input-disabled"}`}
+                  disabled={isCreate ? "" : true}
                   value={form.values.month}
                   onChange={(e) => form.setFieldValue("month", e.target.value)}
                   name=""
@@ -504,12 +1317,26 @@ const MrpForm = ({ session, data, onClose, brands }) => {
                   {Array(12)
                     .fill(0)
                     .map((i, index) => {
-                      let val = currentMonth + index;
-                      return <option value={val}>{val}</option>;
+                      let val = index + 1;
+                      return (
+                        <option key={index} value={val}>
+                          {val}
+                        </option>
+                      );
                     })}
                 </select>
               </div>
             </div>
+          </div>
+          <div className="form-section">
+            <button
+              className="text-blue-400"
+              onClick={() => {
+                toggleDetails();
+              }}
+            >
+              {showDetail ? "Ocultar" : "Mostrar"} detalle
+            </button>
           </div>
           <div className="form-section">
             {/* <label htmlFor="" className="form-label">
@@ -519,12 +1346,81 @@ const MrpForm = ({ session, data, onClose, brands }) => {
             <label htmlFor="" className="form-label">
               Ventas (últimos 12 meses)
             </label>
-            <CustomDatatable
+            {/* <CustomDatatable
               columns={columns}
-              data={stockSummary}
+              // data={stockSummary}
+              data={mode != "CREATE" ? detailData : stockSummary}
               shadow={false}
               isLoading={isLoading}
-            />
+            /> */}
+
+            {isLoading && (
+              <div className="w-full h-96 flex justify-center items-center">
+                <DNA wrapperStyle={{ opacity: 0.6 }} height="80" width="80" />
+              </div>
+            )}
+            {!isLoading &&
+            (stockSummary.length > 0 || detailData.length > 0) ? (
+              <Table
+                width={800}
+                height={400}
+                // headerHeight={60}
+                rowHeight={45}
+                rowCount={
+                  mode != "CREATE" ? detailData.length : stockSummary.length
+                }
+                rowGetter={({ index }) =>
+                  mode != "CREATE" ? detailData[index] : stockSummary[index]
+                }
+                headerClassName="bg-black text-white"
+              >
+                {/* isCreate
+          ? hadlePriceSuggestion(row).suggestedAmount
+          : Number(row.detail_suggested_amount) */}
+                {columns.map((c) => c)}
+              </Table>
+            ) : undefined}
+
+            {!isLoading &&
+              stockSummary.length == 0 &&
+              detailData.length == 0 && (
+                <div className="w-full h-96 flex justify-center items-center">
+                  <p>No se encontraron resultados</p>
+                </div>
+              )}
+          </div>
+          <div className="form-section flex justify-end mt-4">
+            <ul className="flex gap-2">
+              <li className="bg-slate-300 p-2 rounded-full">
+                <span>A pedir </span>
+                <b className="dark-gray text-sm">
+                  {isCreate
+                    ? currencyFormat(
+                        stockSummary.reduce(
+                          (acc, item) => acc + parseInt(item.order_amount),
+                          0
+                        ),
+                        false,
+                        0
+                      )
+                    : detailData.reduce(
+                        (acc, item) => acc + parseInt(item.order_amount),
+                        0
+                      )}
+                </b>
+                <span> artículos</span>
+              </li>
+              <li className="bg-slate-300 p-2 rounded-full">
+                <span>Total pedido</span>
+                <b className="dark-gray text-sm">
+                  {" "}
+                  {currencySymbol}
+                  {isCreate
+                    ? currencyFormat(totalCreationMrp, false)
+                    : currencyFormat(totalEditionMrp, false)}
+                </b>
+              </li>
+            </ul>
           </div>
         </div>
         <div className="pt-6 pb-3 flex justify-between gap-4">
@@ -536,15 +1432,29 @@ const MrpForm = ({ session, data, onClose, brands }) => {
             height={55}
             onClick={onClose}
           />
-          <Button
-            title={
-              <p className="font-roboto tracking-wide font-medium">Guardar</p>
-            }
-            variant="dark"
-            width={270}
-            height={55}
-            onClick={() => console.log(stockSummary)}
-          />
+          <div className="flex items-center gap-8">
+            <Button
+              title={
+                <p className="font-roboto tracking-wide font-medium flex items-center relative">
+                  {isCreate ? "Guardar" : "Actualizar"}{" "}
+                  {isFormLoading && (
+                    <Oval
+                      wrapperClass="opacity-80 absolute -right-[80px]"
+                      color="white"
+                      width={20}
+                      height={20}
+                      strokeWidth={4}
+                      secondaryColor="lightgray"
+                    />
+                  )}
+                </p>
+              }
+              variant="dark"
+              width={270}
+              height={55}
+              onClick={() => form.handleSubmit()}
+            />
+          </div>
         </div>
       </div>
     </Modal>
