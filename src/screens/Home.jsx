@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Header from "../components/Header";
 import DtFilter from "../components/DtFilter";
 import CustomDatatable from "../components/CustomDatatable";
@@ -29,7 +29,7 @@ import {
   getCurrentDate,
   getLabelNameByDateEntity,
 } from "../helpers/uiFormat";
-import { BiBlock } from "react-icons/bi";
+import { BiBlock, BiSync } from "react-icons/bi";
 import { generateReport } from "../reports";
 import SearchSelect from "../components/SearchSelect";
 import { FcUp } from "react-icons/fc";
@@ -156,7 +156,7 @@ const Home = () => {
     },
     {
       name: "A pedir",
-      selector: (i) => i.U_suggested_amount,
+      selector: (i) => currencyFormat(i.U_suggested_amount, false, 0),
     },
     {
       name: "Costo pedido",
@@ -388,8 +388,11 @@ const MrpForm = ({
   const [detailData, setDetailData] = useState([]);
   const [months, setMonths] = useState([]);
   const [currentOrder, setCurrentOrder] = useState({});
-  const [currencySymbol, setCurrencySymbol] = useState("RD$");
+  const [currencySymbol, setCurrencySymbol] = useState(data?.U_currency);
   const [isFormLoading, setIsFormLoading] = useState(false);
+  const [keepUpdateOpened, setKeepUpdateOpened] = useState(true);
+  const [fetchNewRefs, setFetchNewRefs] = useState(false);
+  const [detailSearch, setDetailSearch] = useState("");
 
   const form = useFormik({
     initialValues: getInitialValues(),
@@ -554,7 +557,9 @@ const MrpForm = ({
           .catch((err) => console.log(err))
           .finally(() => {
             setIsFormLoading(false);
-            onClose();
+            if (keepUpdateOpened == false) {
+              onClose();
+            }
           });
       }
     },
@@ -594,6 +599,21 @@ const MrpForm = ({
     }
   }, []);
 
+  const filterData = () => {
+    let arr = [];
+    if (isCreate) {
+      arr = [...stockSummary];
+    } else {
+      arr = [...detailData];
+    }
+
+    return arr.filter((item) => {
+      let description = item.description || item.detail_description;
+      let match = item?.item_code + description;
+      return match.includes(detailSearch);
+    });
+  };
+
   // useEffect(() => {
   //   const loadPreviousData = async () => {
   //     const schema = session?.userData.companyDB;
@@ -623,51 +643,50 @@ const MrpForm = ({
 
     return { suggestedAmount, reorderPoint, avgDemand };
   };
+  const loadPreviousData = async () => {
+    try {
+      setIsLoading(true);
+
+      const sm = await getStockSummaryApi({
+        year: form.values.year,
+        month: form.values.month,
+        brand: brandName,
+      });
+      setIsLoading(false);
+
+      const arr = sm.groupedData.map((item) => ({
+        ...item,
+        avgDemand: hadlePriceSuggestion(item).avgDemand,
+        invTrans: parseFloat(item.inv_stock) + parseFloat(item.inv_transit),
+        reorderPoint: hadlePriceSuggestion(item).reorderPoint,
+        order_amount: hadlePriceSuggestion(item).suggestedAmount,
+        price: parseFloat(item.last_purchase_price),
+        suggestedAmount: hadlePriceSuggestion(item).suggestedAmount,
+        lineTotal: (() => {
+          let price = item.price || item.last_purchase_price;
+          let amount =
+            item.order_amount || hadlePriceSuggestion(item).suggestedAmount;
+
+          return currencyFormat(parseFloat(price) * parseFloat(amount), false);
+        })(),
+      }));
+
+      if (isCreate) {
+        setStockSummary(arr);
+        setMonths(sm.months);
+      } else {
+        console.log("UPDATING", sm.groupedData);
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
 
   useEffect(() => {
-    const loadPreviousData = async () => {
-      const schema = session?.userData.companyDB;
-      try {
-        setIsLoading(true);
-
-        const stockSummary = await getStockSummaryApi({
-          year: form.values.year,
-          month: form.values.month,
-          brand: brandName,
-        });
-        setIsLoading(false);
-
-        const arr = stockSummary.groupedData.map((item) => ({
-          ...item,
-          avgDemand: hadlePriceSuggestion(item).avgDemand,
-          invTrans: parseFloat(item.inv_stock) + parseFloat(item.inv_transit),
-          reorderPoint: hadlePriceSuggestion(item).reorderPoint,
-          order_amount: hadlePriceSuggestion(item).suggestedAmount,
-          price: parseFloat(item.last_purchase_price),
-          suggestedAmount: hadlePriceSuggestion(item).suggestedAmount,
-          lineTotal: (() => {
-            let price = item.price || item.last_purchase_price;
-            let amount =
-              item.order_amount || hadlePriceSuggestion(item).suggestedAmount;
-
-            return currencyFormat(
-              parseFloat(price) * parseFloat(amount),
-              false
-            );
-          })(),
-        }));
-
-        setStockSummary(arr);
-        setMonths(stockSummary.months);
-      } catch (error) {
-        console.log(error);
-      }
-    };
-
     loadPreviousData();
-  }, [brandName, form.values.year, form.values.month]);
+  }, [brandName, form.values.year, form.values.month, fetchNewRefs]);
 
-  const handleUpdate = (id, value, type) => {
+  const handleUpdate = (id, value, type, targetElementId) => {
     let arr = [];
     if (isCreate) {
       arr = [...stockSummary];
@@ -693,23 +712,24 @@ const MrpForm = ({
 
     isCreate ? setStockSummary(arr) : setDetailData(arr);
 
-    setTimeout(() => {
-      document.getElementById(type + arr[index + 1]?.item_code)?.focus();
-    }, 5);
+    if (!targetElementId) {
+      console.log("hi");
+
+      setTimeout(() => {
+        document.getElementById(type + arr[index + 1]?.item_code)?.focus();
+      }, 5);
+    } else {
+      setTimeout(() => {
+        //document.activeElement.blur();
+        console.log("hi");
+        console.log(targetElementId);
+
+        document.getElementById(targetElementId)?.focus();
+      }, 5);
+    }
   };
 
-  const CustomInput = ({ row, initialValue, type }) => {
-    // if (type === "amount_edit") {
-    //   let arr = {};
-    //   Object.entries(row).forEach(([key, value]) => {
-    //     let actualKey = key.replace("U_", "");
-
-    //     arr[actualKey] = value;
-    //   });
-
-    //   row = { ...arr };
-    // }
-
+  const CustomInput = ({ index, row, initialValue, type }) => {
     const [fieldValue, setFieldValue] = useState(initialValue);
 
     useEffect(() => {
@@ -727,7 +747,33 @@ const MrpForm = ({
           type="number"
           className="form-input bg-slate-50 h-8 w-26 mr-3 mt-0 rounded-md outline-none"
           value={fieldValue}
-          onChange={(e) => setFieldValue(e.target.value)}
+          onBlur={(e) => {
+            switch (type) {
+              case "amount":
+                handleUpdate(
+                  row.item_code,
+                  fieldValue || 0,
+                  "amount",
+                  e.relatedTarget.id
+                );
+                break;
+              case "price":
+                handleUpdate(
+                  row.item_code,
+                  fieldValue || 0,
+                  "price",
+                  e.relatedTarget.id
+                );
+                break;
+
+              default:
+                break;
+            }
+            //}
+          }}
+          onChange={(e) => {
+            setFieldValue(e.target.value);
+          }}
           onKeyDown={(e) => {
             if (e.key == "Enter") {
               switch (type) {
@@ -951,10 +997,11 @@ const MrpForm = ({
       headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
       width={130}
       columnData={"order"}
-      cellRenderer={({ rowData: row }) => {
+      cellRenderer={({ rowData: row, rowIndex }) => {
         return (
           <div data-id="order">
             <CustomInput
+              index={rowIndex}
               row={row}
               type={"amount"}
               initialValue={
@@ -1329,14 +1376,35 @@ const MrpForm = ({
             </div>
           </div>
           <div className="form-section">
-            <button
-              className="text-blue-400"
-              onClick={() => {
-                toggleDetails();
-              }}
-            >
-              {showDetail ? "Ocultar" : "Mostrar"} detalle
-            </button>
+            <div className="flex gap-3 justify-between">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setFetchNewRefs((prev) => !prev)}
+                  className="flex items-center hover:bg-slate-200 bg-light-blue  duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
+                >
+                  <BiSync size={20} /> Cargar nuevas referencias
+                </button>
+                <button
+                  className="text-blue-400 hover:bg-slate-200 bg-light-blue duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
+                  onClick={() => {
+                    toggleDetails();
+                  }}
+                >
+                  {showDetail ? "Ocultar" : "Mostrar"} detalles
+                </button>
+              </div>
+              <div>
+                <span className="text-dark-gray">Buscar</span>
+                <input
+                  className="ml-3 form-input w-60 h-10"
+                  placeholder="Codigo, descripción..."
+                  value={detailSearch}
+                  onChange={(e) =>
+                    setDetailSearch(e.target.value.toLocaleUpperCase())
+                  }
+                />
+              </div>
+            </div>
           </div>
           <div className="form-section">
             {/* <label htmlFor="" className="form-label">
@@ -1367,10 +1435,10 @@ const MrpForm = ({
                 // headerHeight={60}
                 rowHeight={45}
                 rowCount={
-                  mode != "CREATE" ? detailData.length : stockSummary.length
+                  mode != "CREATE" ? filterData().length : filterData().length
                 }
                 rowGetter={({ index }) =>
-                  mode != "CREATE" ? detailData[index] : stockSummary[index]
+                  mode != "CREATE" ? filterData()[index] : filterData()[index]
                 }
                 headerClassName="bg-black text-white"
               >
@@ -1389,38 +1457,54 @@ const MrpForm = ({
                 </div>
               )}
           </div>
-          <div className="form-section flex justify-end mt-4">
-            <ul className="flex gap-2">
-              <li className="bg-slate-300 p-2 rounded-full">
-                <span>A pedir </span>
-                <b className="dark-gray text-sm">
-                  {isCreate
-                    ? currencyFormat(
-                        stockSummary.reduce(
-                          (acc, item) => acc + parseInt(item.order_amount),
+          <div className="form-section flex justify-between mt-4">
+            <div className="flex items-center gap-2">
+              Cantidad de referencias{" "}
+              <p className="bg-slate-300 p-2 rounded-full px-4 text-center">
+                <b>
+                  {mode != "CREATE"
+                    ? currencyFormat(filterData().length, false, 0)
+                    : currencyFormat(filterData().length, false, 0)}
+                </b>
+              </p>
+            </div>
+            <div>
+              <ul className="flex gap-2">
+                <li className="bg-slate-300 p-2 rounded-full">
+                  <span>A pedir </span>
+                  <b className="dark-gray text-sm">
+                    {isCreate
+                      ? currencyFormat(
+                          stockSummary.reduce(
+                            (acc, item) => acc + parseInt(item.order_amount),
+                            0
+                          ),
+                          false,
                           0
-                        ),
-                        false,
-                        0
-                      )
-                    : detailData.reduce(
-                        (acc, item) => acc + parseInt(item.order_amount),
-                        0
-                      )}
-                </b>
-                <span> artículos</span>
-              </li>
-              <li className="bg-slate-300 p-2 rounded-full">
-                <span>Total pedido</span>
-                <b className="dark-gray text-sm">
-                  {" "}
-                  {currencySymbol}
-                  {isCreate
-                    ? currencyFormat(totalCreationMrp, false)
-                    : currencyFormat(totalEditionMrp, false)}
-                </b>
-              </li>
-            </ul>
+                        )
+                      : currencyFormat(
+                          detailData.reduce(
+                            (acc, item) => acc + parseInt(item.order_amount),
+                            0
+                          ),
+                          false,
+                          0
+                        )}
+                  </b>
+                  <span> artículos</span>
+                </li>
+                <li className="bg-slate-300 p-2 rounded-full">
+                  <span>Total pedido</span>
+                  <b className="dark-gray text-sm">
+                    {" "}
+                    {currencySymbol}
+                    {isCreate
+                      ? currencyFormat(totalCreationMrp, false)
+                      : currencyFormat(totalEditionMrp, false)}
+                  </b>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
         <div className="pt-6 pb-3 flex justify-between gap-4">
@@ -1433,6 +1517,20 @@ const MrpForm = ({
             onClick={onClose}
           />
           <div className="flex items-center gap-8">
+            {!isCreate && (
+              <div className="flex items-center gap-2">
+                <input
+                  checked={keepUpdateOpened}
+                  onChange={() => setKeepUpdateOpened((prev) => !prev)}
+                  type="checkbox"
+                  className="w-4 h-4"
+                />
+                <p className="text-dark-gray font-medium -mb-1">
+                  {" "}
+                  Mantener abierto
+                </p>
+              </div>
+            )}
             <Button
               title={
                 <p className="font-roboto tracking-wide font-medium flex items-center relative">
@@ -1452,7 +1550,10 @@ const MrpForm = ({
               variant="dark"
               width={270}
               height={55}
-              onClick={() => form.handleSubmit()}
+              onClick={() => {
+                setDetailSearch("");
+                form.handleSubmit();
+              }}
             />
           </div>
         </div>
