@@ -10,7 +10,7 @@ const DtMenu = ({ options = [], status }) => {
   const toggleMenu = () => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      let scale = 1.11;
+      let scale = 1;
 
       setPosition({
         top: rect.bottom * scale + window.scrollY,

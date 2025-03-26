@@ -16,7 +16,7 @@ function App() {
   }
 
   return (
-    <div className="padding-wide overflow-hidden">
+    <div className="padding-wide overflow-hidden" style={{ zoom: "95%" }}>
       <BrowserRouter>
         <Nav
           companyName={getCompanyNameBySchema(session.userData.companyDB)}

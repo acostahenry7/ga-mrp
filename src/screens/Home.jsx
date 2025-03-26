@@ -673,10 +673,10 @@ const MrpForm = ({
 
       if (isCreate) {
         setStockSummary(arr);
-        setMonths(sm.months);
       } else {
         console.log("UPDATING", sm.groupedData);
       }
+      setMonths(sm.months);
     } catch (error) {
       console.log(error);
     }
@@ -1205,6 +1205,7 @@ const MrpForm = ({
               Marca
             </label>
             <select
+              id="brand-select"
               className={`form-input ${isCreate ? "" : "input-disabled"}`}
               value={form.values.brandId}
               disabled={isCreate ? "" : true}
@@ -1230,6 +1231,7 @@ const MrpForm = ({
               Proveedor
             </label>
             <SearchSelect
+              customId="provider-select"
               options={providers}
               fields={{ key: "CardCode", value: "CardName", keyOnLabel: true }}
               variant="INPUT"
@@ -1279,6 +1281,7 @@ const MrpForm = ({
               </label>
               <div className="relative">
                 <input
+                  id="description"
                   type="text"
                   className="form-input"
                   value={form.values.description}
@@ -1302,6 +1305,7 @@ const MrpForm = ({
               </label>
 
               <select
+                id="currency-select"
                 className="form-input"
                 value={form.values.currency}
                 onChange={(e) => {
@@ -1312,7 +1316,6 @@ const MrpForm = ({
                   form.setFieldValue("currency", e.target.value);
                 }}
                 name=""
-                id=""
               >
                 {formCurr.map(({ CurrCode, CurrName, DocCurrCod }, index) => {
                   return (
@@ -1330,12 +1333,12 @@ const MrpForm = ({
                 </label>
 
                 <select
+                  id="year"
                   className={`form-input ${isCreate ? "" : "input-disabled"}`}
                   value={form.values.year}
                   disabled={isCreate ? "" : true}
                   onChange={(e) => form.setFieldValue("year", e.target.value)}
                   name=""
-                  id=""
                 >
                   {Array(10)
                     .fill(0)
@@ -1354,12 +1357,12 @@ const MrpForm = ({
                   Mes
                 </label>
                 <select
+                  id="month"
                   className={`form-input ${isCreate ? "" : "input-disabled"}`}
                   disabled={isCreate ? "" : true}
                   value={form.values.month}
                   onChange={(e) => form.setFieldValue("month", e.target.value)}
                   name=""
-                  id=""
                 >
                   {Array(12)
                     .fill(0)
@@ -1396,6 +1399,7 @@ const MrpForm = ({
               <div>
                 <span className="text-dark-gray">Buscar</span>
                 <input
+                  id="detail-search"
                   className="ml-3 form-input w-60 h-10"
                   placeholder="Codigo, descripción..."
                   value={detailSearch}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
 const SearchSelect = ({
+  customId = "",
   options,
   placeholder = "Selecciona una opcion",
   defaultValue,
@@ -60,6 +61,7 @@ const SearchSelect = ({
   return (
     <div className="relative w-full" ref={dropdownRef}>
       <input
+        id={customId}
         type="search"
         value={search}
         onChange={(e) => setSearch(e.target.value)}

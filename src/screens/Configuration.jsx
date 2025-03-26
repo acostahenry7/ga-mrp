@@ -1,7 +1,7 @@
 import React from "react";
 import Header from "../components/Header";
 import ConfigCard from "../components/ConfigCard";
-import { LuTag } from "react-icons/lu";
+import { LuLayoutDashboard, LuTag } from "react-icons/lu";
 
 const Configuration = () => {
   const iconClasses = `text-[24px]`;
@@ -11,14 +11,21 @@ const Configuration = () => {
       icon: <LuTag className={iconClasses} />,
       path: "brands",
     },
+    {
+      label: "INTERFAZ",
+      icon: <LuLayoutDashboard className={iconClasses} />,
+      path: "brands",
+    },
   ];
 
   return (
     <div>
       <Header title={"CONFIGURACIÓN"} />
-      {items.map(({ label, icon, path }) => (
-        <ConfigCard key={label} label={label} icon={icon} path={path} />
-      ))}
+      <div className="flex gap-3 flex-wrap flex-shrink-[210px]">
+        {items.map(({ label, icon, path }) => (
+          <ConfigCard key={label} label={label} icon={icon} path={path} />
+        ))}
+      </div>
     </div>
   );
 };

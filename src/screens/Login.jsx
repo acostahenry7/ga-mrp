@@ -59,7 +59,7 @@ const Login = () => {
   });
 
   return (
-    <div className="flex">
+    <div className="flex h-full">
       <div className="flex flex-1 flex-col items-center tracking-tight justify-center min-h-lvh px-6 lg:px-16 w-lvw box-border">
         <img src={logoFull} width={170} height={25} />
         <h2 className="font-roboto font-semibold text-[36px] text-slate-800">
@@ -146,7 +146,7 @@ const Login = () => {
       </div>
       <div className="hidden lg:flex p-2">
         <div className="w-full h-full relative">
-          <div className="absolute w-full h-full bg-gradient-to-b from-slate-900 via-transparent to-slate-900 rounded-tl-[50px] rounded-br-[50px] "></div>
+          <div className="absolute w-full h-full bg-gradient-to-b from-slate-900 via-transparent to-slate-900 rounded-tl-[50px] rounded-br-[50px] object-fill"></div>
           <img
             className="object-cover w-full h-full rounded-tl-[50px] rounded-br-[50px]"
             src={forthing}
