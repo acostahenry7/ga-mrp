@@ -38,9 +38,10 @@ import { DNA, Oval } from "react-loader-spinner";
 import { PiFileDoc } from "react-icons/pi";
 import { createPurchaseOrderDraftApi } from "../api/PurchaseOderDraft";
 import useDisableScroll from "../hooks/useDisableScroll";
+import { dt } from "../helpers/ui";
 
 const Home = () => {
-  const { session } = useAuth();
+  const { session, signout } = useAuth();
   const [data, setData] = useState([]);
   const [currentData, setCurrentData] = useState({});
   const [brands, setBrands] = useState([]);
@@ -130,10 +131,16 @@ const Home = () => {
       .then((res) => {
         console.log(res);
         retrieveMrp();
-        setIsRowLoading(false);
       })
       .catch((err) => {
-        console.log(err);
+        if (err.message.toLowerCase().includes("session")) {
+          signout();
+        } else {
+          console.log(err);
+        }
+      })
+      .finally(() => {
+        setIsRowLoading(false);
       });
   };
 
@@ -221,14 +228,14 @@ const Home = () => {
         );
       },
     },
-    {
-      name: "Creado por",
-      selector: (i) => i.U_created_by,
-    },
-    {
-      name: "Modificado por",
-      selector: (i) => i.U_last_modified_by,
-    },
+    // {
+    //   name: "Creado por",
+    //   selector: (i) => i.U_created_by,
+    // },
+    // {
+    //   name: "Modificado por",
+    //   selector: (i) => i.U_last_modified_by,
+    // },
     {
       name: "Acciones",
       cell: (row) => {
@@ -260,11 +267,12 @@ const Home = () => {
           },
         ];
 
-        return [
-          <DtMenu options={options} status={row.U_status} />,
+        return (
           <>
+            <DtMenu options={options} status={row.U_status} />
             {isRowLoading && currentCode == row.Code && (
               <Oval
+                key={1}
                 visible={true}
                 height="15"
                 width="15"
@@ -276,8 +284,8 @@ const Home = () => {
                 wrapperClass="ml-4"
               />
             )}
-          </>,
-        ];
+          </>
+        );
       },
     },
   ];
@@ -538,6 +546,7 @@ const MrpForm = ({
           ),
           currency: values.currency,
           lastModifiedBy: session?.userData?.UserName,
+          providerCode: values.providerCode,
           detail: detailData.map((item) => {
             return {
               itemCode: item.item_code,
@@ -745,7 +754,7 @@ const MrpForm = ({
         <input
           id={`${type}${row.item_code}`}
           type="number"
-          className="form-input bg-slate-50 h-8 w-26 mr-3 mt-0 rounded-md outline-none"
+          className="form-input bg-slate-50 h-8 w-26 mr-3 mt-0 rounded-md "
           value={fieldValue}
           onBlur={(e) => {
             switch (type) {
@@ -820,15 +829,17 @@ const MrpForm = ({
       //   width: "70px",
       // });
 
-      arr.push(
-        <Column
-          label={`${month}`}
-          dataKey="description"
-          cellRenderer={({ rowData: row }) =>
-            isCreate ? row.amounts[index] : row[`sales_${suffix}`]
-          }
-        />
-      );
+      arr.push({
+        label: month,
+        width: dt.width.amount_detail,
+        dataKey: `sales_${suffix}`,
+        cellRenderer: (row, dataKey) =>
+          isCreate ? (
+            <div data-id="detail">{row.amounts[index]}</div>
+          ) : (
+            <div data-id="detail">{row[`sales_${suffix}`]}</div>
+          ),
+      });
     });
 
     return showDetail ? arr : [];
@@ -908,96 +919,82 @@ const MrpForm = ({
   };
 
   const firstDefaultCols = [
-    <Column
-      label="Codigo"
-      dataKey="item_code"
-      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
-      //width={100}
-      // headerRenderer={({ label }) => (
-      //   <span style={{ margin: 0 }}>{label}</span>
-      // )}
-    />,
-    <Column
-      label="Description"
-      dataKey={isCreate ? "description" : "detail_description"}
-      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
-      cellRenderer={({ rowData: row }) =>
-        isCreate ? row.description : row.detail_description
-      }
-    />,
-    <Column
-      label="Modelo"
-      dataKey="model"
-      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
-    />,
-    <Column
-      label="Inventario"
-      dataKey="inv_stock"
-      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
-      cellRenderer={(row) => {
-        return parseFloat(row.rowData.inv_stock);
-      }}
-    />,
-    <Column
-      label="Tránsito"
-      dataKey="inv_transit"
-      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
-      cellRenderer={(row) => {
-        return parseFloat(row.rowData.inv_transit);
-      }}
-    />,
-    isCreate && (
-      <Column
-        label="INV + TRAN"
-        dataKey="invTrans"
-        headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
-        // cellRenderer={(row) => {
-        //   return parseFloat(row.rowData.invTrans);
-        // }}
-      />
-    ),
+    {
+      label: "Codigo",
+      width: dt.width.name + 15,
+      dataKey: "item_code",
+      cellRenderer: (row) => (
+        <span
+          onClick={() => navigator.clipboard.writeText(row.item_code)}
+          className="cursor-pointer font-medium hover:text-green-600 py-3 box-border rounded-full active:text-green-800 duration-200"
+        >
+          {row.item_code}
+        </span>
+      ),
+    },
+    {
+      label: "Description",
+      width: dt.width.description,
+      dataKey: isCreate ? "description" : "detail_description",
+      cellRenderer: (row, dataKey) =>
+        isCreate ? row.description : row.detail_description,
+    },
+    {
+      label: "Modelo",
+      width: dt.width.name,
+      dataKey: "model",
+    },
+    {
+      label: "Inventario",
+      width: dt.width.amount,
+      dataKey: "inv_stock",
+      cellRenderer: (row) => parseFloat(row.inv_stock),
+    },
+    {
+      label: "Tránsito",
+      width: dt.width.amount,
+      dataKey: "inv_transit",
+      cellRenderer: (row) => parseFloat(row.inv_transit),
+    },
+    {
+      label: "INV + TRAN",
+      width: dt.width.amount,
+      dataKey: isCreate ? "invTrans" : "sum_inv_trans",
+      cellRenderer: (row) =>
+        isCreate ? parseFloat(row.invTrans) : parseFloat(row.sum_inv_trans),
+    },
   ];
   const secondDefaultCols = [
-    <Column
-      label="Promedio venta"
-      dataKey={isCreate ? "avgDemand" : "avg_demand"}
-      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
-      cellRenderer={({ rowData: row, dataKey }) =>
-        currencyFormat(Math.trunc(row[dataKey]), false)
-      }
-      // cellRenderer={({ rowData: row }) =>
-      //   isCreate
-      //     ? Math.round(hadlePriceSuggestion(row).avgDemand).toFixed(0)
-      //     : Math.round(parseFloat(row.avg_demand)).toFixed(0)
-      // }
-    />,
-    <Column
-      label="Punto reorden"
-      dataKey={isCreate ? "reorderPoint" : "reorder_point"}
-      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
-      cellRenderer={({ rowData: row }) =>
+    {
+      label: "Promedio venta",
+      width: dt.width.amount,
+      dataKey: isCreate ? "avgDemand" : "avg_demand",
+      cellRenderer: (row, dataKey) =>
+        currencyFormat(Math.trunc(row[dataKey]), false),
+    },
+    {
+      label: "Punto reorden",
+      width: dt.width.amount,
+      dataKey: isCreate ? "reorderPoint" : "reorder_point",
+      cellRenderer: (row, dataKey) =>
         isCreate
           ? Math.round(hadlePriceSuggestion(row).reorderPoint)
-          : parseFloat(row.reorder_point).toFixed(0)
-      }
-    />,
-    <Column
-      label="Sugerido"
-      dataKey={isCreate ? "suggestedAmount" : "detail_suggested_amount"}
-      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
-      cellRenderer={({ rowData: row }) =>
+          : parseFloat(row.reorder_point).toFixed(0),
+    },
+    {
+      label: "Sugerido",
+      width: dt.width.amount,
+      dataKey: isCreate ? "suggestedAmount" : "detail_suggested_amount",
+      cellRenderer: (row, dataKey) =>
         isCreate
           ? Math.round(hadlePriceSuggestion(row).suggestedAmount)
-          : Math.round(Number(row.detail_suggested_amount))
-      }
-    />,
-    <Column
-      label="A pedir"
-      dataKey={"order_amount"}
-      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
-      width={130}
-      columnData={"order"}
-      cellRenderer={({ rowData: row, rowIndex }) => {
+          : Math.round(Number(row.detail_suggested_amount)),
+    },
+    {
+      label: "A pedir",
+      width: dt.width.input,
+      dataKey: "order_amount",
+      cellRenderer: (row, dataKey, rowIndex) => {
         return (
           <div data-id="order">
             <CustomInput
@@ -1010,22 +1007,20 @@ const MrpForm = ({
             />
           </div>
         );
-      }}
-    />,
-    <Column
-      label="Ult. Precio compra"
-      dataKey="last_purchase_price"
-      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
-      cellRenderer={({ rowData: row }) =>
-        parseFloat(row.last_purchase_price).toFixed(2)
-      }
-    />,
-    <Column
-      label="Precio"
-      dataKey="price"
-      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
-      width={130}
-      cellRenderer={({ rowData: row }) => (
+      },
+    },
+    {
+      label: "Ult. Precio compra",
+      width: dt.width.price,
+      dataKey: "last_purchase_price",
+      cellRenderer: (row, dataKey) =>
+        parseFloat(row.last_purchase_price).toFixed(2),
+    },
+    {
+      label: "Precio",
+      width: dt.width.input,
+      dataKey: "price",
+      cellRenderer: (row, dataKey) => (
         <CustomInput
           row={row}
           type={"price"}
@@ -1035,117 +1030,20 @@ const MrpForm = ({
               : parseFloat(row.last_purchase_price)
           }
         />
-      )}
-    />,
-    <Column
-      label="Total"
-      dataKey="lineTotal"
-      headerRenderer={({ dataKey, label }) => headerRenderer(dataKey, label)}
-      cellRenderer={({ rowData: row, dataKey }) => {
+      ),
+    },
+    {
+      label: "Total",
+      width: dt.width.price,
+      dataKey: "lineTotal",
+      cellRenderer: (row, dataKey) => {
         let price = row.price || row.last_purchase_price;
         let amount =
           row.order_amount || hadlePriceSuggestion(row).suggestedAmount;
 
         return currencyFormat(parseFloat(price) * parseFloat(amount), false);
-
-        // if (row.price || row.order_amount) {
-        //   return parseFloat(row.price) * parseFloat(row.order_amount);
-        // } else {
-        //   return (
-        //     parseFloat(row.last_purchase_price) *
-        //     hadlePriceSuggestion(row).suggestedAmount
-        //   );
-        // }
-      }}
-      //   if (row.price && row.order_amount) {
-      //     return parseFloat(row.price) * parseFloat(row.order_amount);
-      //   } else {
-      //     return (
-      //       parseFloat(row.last_purchase_price) *
-      //       hadlePriceSuggestion(row).suggestedAmount
-      //     ).toFixed(2);
-      //   }
-      // }}
-    />,
-    // {
-    //   name: "Demanda",
-    //   selector: (row) =>
-    //     isCreate
-    //       ? Math.round(hadlePriceSuggestion(row).avgDemand).toFixed(0)
-    //       : Math.round(row.avg_demand).toFixed(0),
-    //   width: "100px",
-    // },
-    // {
-    //   name: "Punto reorden",
-    //   selector: (row) =>
-    //     isCreate
-    //       ? Math.round(hadlePriceSuggestion(row).reorderPoint)
-    //       : Number(row.reorder_point).toFixed(0),
-    //   width: "100px",
-    // },
-    // {
-    //   name: "Sugerido",
-    //   selector: (row) =>
-    //     isCreate
-    //       ? hadlePriceSuggestion(row).suggestedAmount
-    //       : Number(row.detail_suggested_amount), //Is gone be a function with the calcs,
-    //   width: "100px",
-    // },
-    // // {
-    // //   name: "A pedir",
-    // //   selector: (row) => isCreate ?
-    // //     row.order_amount || hadlePriceSuggestion(row).suggestedAmount,
-    // // },
-
-    // {
-    //   name: "A pedir",
-    //   selector: (row) => {
-
-    //     return (
-    //       <CustomInput
-    //         row={row}
-    //         type={"amount"}
-    //         initialValue={
-    //           row.order_amount || hadlePriceSuggestion(row).suggestedAmount
-    //         }
-    //       />
-    //     );
-    //   },
-    //   width: "160px",
-    // },
-    // {
-    //   name: "Ult. Precio compra",
-    //   selector: (row) => parseFloat(row.last_purchase_price).toFixed(2),
-
-    //   width: "100px",
-    // },
-    // {
-    //   name: "Precio",
-    //   selector: (row) => (
-    //     <CustomInput
-    //       row={row}
-    //       type={"price"}
-    //       initialValue={
-    //         row.price || parseFloat(row.last_purchase_price).toFixed(2)
-    //       }
-    //     />
-    //   ),
-    //   width: "160px",
-    // },
-    // {
-    //   name: "Total linea",
-    //   selector: (row) => {
-    //     if (row.price && row.order_amount) {
-    //       return parseFloat(row.price) * parseFloat(row.order_amount);
-    //     } else {
-    //       return (
-    //         parseFloat(row.last_purchase_price) *
-    //         hadlePriceSuggestion(row).suggestedAmount
-    //       ).toFixed(2);
-    //     }
-    //   },
-    //   width: "100px",
-    // },
+      },
+    },
   ];
   // const [columns, setColumns] = React.useState([
   //   ...firstDefaultCols,
@@ -1174,6 +1072,8 @@ const MrpForm = ({
     //   }}
     // />,
   ];
+
+  const dtWidth = columns.reduce((acc, item) => acc + item.width + 10, 0);
 
   function toggleDetails() {
     setShowDetail((prev) => !prev);
@@ -1400,6 +1300,7 @@ const MrpForm = ({
                 <span className="text-dark-gray">Buscar</span>
                 <input
                   id="detail-search"
+                  type="search"
                   className="ml-3 form-input w-60 h-10"
                   placeholder="Codigo, descripción..."
                   value={detailSearch}
@@ -1410,7 +1311,7 @@ const MrpForm = ({
               </div>
             </div>
           </div>
-          <div className="form-section">
+          <div className="form-section overflow-x-auto w-full">
             {/* <label htmlFor="" className="form-label">
               Nivel de servicio (Z)
             </label>
@@ -1433,24 +1334,53 @@ const MrpForm = ({
             )}
             {!isLoading &&
             (stockSummary.length > 0 || detailData.length > 0) ? (
-              <Table
-                width={800}
-                height={400}
-                // headerHeight={60}
-                rowHeight={45}
-                rowCount={
-                  mode != "CREATE" ? filterData().length : filterData().length
-                }
-                rowGetter={({ index }) =>
-                  mode != "CREATE" ? filterData()[index] : filterData()[index]
-                }
-                headerClassName="bg-black text-white"
-              >
-                {/* isCreate
+              <AutoSizer disableHeight>
+                {({ width }) => [
+                  // <span>
+                  //   {dtWidth} vs {window.screen.width * 0.9}
+                  // </span>,
+                  <Table
+                    width={Math.max(dtWidth, window.screen.width * 0.9)}
+                    height={400}
+                    rowHeight={45}
+                    rowCount={
+                      mode != "CREATE"
+                        ? filterData().length
+                        : filterData().length
+                    }
+                    rowGetter={({ index }) =>
+                      mode != "CREATE"
+                        ? filterData()[index]
+                        : filterData()[index]
+                    }
+                    headerClassName="bg-black text-white"
+                  >
+                    {/* isCreate
           ? hadlePriceSuggestion(row).suggestedAmount
           : Number(row.detail_suggested_amount) */}
-                {columns.map((c) => c)}
-              </Table>
+                    {columns.map((c) => (
+                      <Column
+                        key={c.key}
+                        width={c.width}
+                        label={c.label}
+                        dataKey={c.dataKey}
+                        headerRenderer={({ dataKey, label }) =>
+                          headerRenderer(dataKey, label)
+                        }
+                        {...(c.cellRenderer
+                          ? {
+                              cellRenderer: ({
+                                rowData: row,
+                                dataKey,
+                                rowIndex,
+                              }) => c.cellRenderer(row, dataKey, rowIndex),
+                            }
+                          : {})}
+                      />
+                    ))}
+                  </Table>,
+                ]}
+              </AutoSizer>
             ) : undefined}
 
             {!isLoading &&
@@ -1461,7 +1391,7 @@ const MrpForm = ({
                 </div>
               )}
           </div>
-          <div className="form-section flex justify-between mt-4">
+          <div className="form-section flex justify-between mt-4 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               Cantidad de referencias{" "}
               <p className="bg-slate-300 p-2 rounded-full px-4 text-center">
@@ -1474,9 +1404,9 @@ const MrpForm = ({
             </div>
             <div>
               <ul className="flex gap-2">
-                <li className="bg-slate-300 p-2 rounded-full">
+                <li className="bg-slate-300 p-2 rounded-full text-center">
                   <span>A pedir </span>
-                  <b className="dark-gray text-sm">
+                  <b className="dark-gray text-sm ">
                     {isCreate
                       ? currencyFormat(
                           stockSummary.reduce(
@@ -1497,7 +1427,7 @@ const MrpForm = ({
                   </b>
                   <span> artículos</span>
                 </li>
-                <li className="bg-slate-300 p-2 rounded-full">
+                <li className="bg-slate-300 p-2 rounded-full text-center">
                   <span>Total pedido</span>
                   <b className="dark-gray text-sm">
                     {" "}

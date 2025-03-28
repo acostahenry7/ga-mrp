@@ -13,6 +13,7 @@ async function createPurchaseOrderDraftApi(params, data) {
         ItemCode: item.U_item_code,
         Quantity: item.U_order_amount,
         UnitPrice: parseFloat(item.price),
+        WarehouseCode: "IMPORT",
       })),
   };
 
@@ -32,8 +33,16 @@ async function createPurchaseOrderDraftApi(params, data) {
     }
   )
     .then((res) => res.json())
-    .then((data) => data)
-    .catch((err) => err);
+    .then((data) => {
+      if (data.error == true) {
+        throw new Error(data.body);
+      }
+
+      //return data;
+    })
+    .catch((err) => {
+      throw err;
+    });
 }
 
 export { createPurchaseOrderDraftApi };
