@@ -22,6 +22,8 @@ export async function generateReport(params, data) {
   const fileName = params?.fileName || "generic.pdf";
   const doc = initializeReport();
 
+  console.log(data);
+
   const printData = {
     ...data,
     detail: orderBy(
@@ -146,14 +148,37 @@ function generateBody(data, left, top, doc) {
   left = 5;
   top += 20;
   let spacing = 4;
-  let columnDefaultWidth = 20;
+  let columnDefaultWidth = 14;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const textLimit =
     doc.internal.pageSize.orientation === "landscape" ? pageWidth : pageHeight;
 
+  const getSalesFields = () => {
+    let targetFields = [];
+
+    let monthNum = parseInt(data.U_start_month);
+    for (let i = 0; i < 12; i++) {
+      let month = `${i + 1}`.padStart(2, "0");
+      let width = 7;
+      targetFields.push({
+        label: `${monthNum}`,
+        field: `U_sales_${month}`,
+        width: i == 11 ? width + 7 : width,
+        type: "number",
+      });
+
+      monthNum++;
+      if (monthNum > 12) {
+        monthNum = 1;
+      }
+    }
+
+    return targetFields;
+  };
+
   const fields = [
-    { label: "No. artículo", field: "U_item_code", width: 30, type: "text" },
+    { label: "No. artículo", field: "U_item_code", width: 25, type: "text" },
     // {
     //   label: "Año",
     //   field: "U_year",
@@ -163,7 +188,7 @@ function generateBody(data, left, top, doc) {
     {
       label: "Descripción",
       field: "U_detail_description",
-      width: 70,
+      width: 50,
       type: "text",
     },
 
@@ -188,9 +213,10 @@ function generateBody(data, left, top, doc) {
     {
       label: "Inventario\nTotal",
       field: "invTransit",
-      width: columnDefaultWidth,
+      width: columnDefaultWidth - 5,
       type: "number",
     },
+    ...getSalesFields(),
     {
       label: "Promedio\nde ventas",
       field: "U_avg_demand",
@@ -235,6 +261,8 @@ function generateBody(data, left, top, doc) {
     },
   ];
 
+  console.log(fields);
+
   let itemsCol = 4;
   const createTableHeader = () => {
     fields.map((field, index) => {
@@ -258,19 +286,19 @@ function generateBody(data, left, top, doc) {
     left = defaultX;
     fields.map((field) => {
       let textValue = item[field.field];
-      if (field.type === "number") {
+      if (field.type === "number" && !field.field.includes("U_sales")) {
         textValue = currencyFormat(item[field.field], false);
       }
 
       if (
         textValue &&
-        getStringWidth(textValue) > (field.width * 72) / 150 &&
-        field.label == "Descripción"
+        field.label == "Descripción" &&
+        getStringWidth(textValue.toString()) > (field.width * 72) / 100
       ) {
         let preValue = textValue || "";
         textValue = "";
         for (let c of preValue) {
-          if (getStringWidth(textValue) < (field.width * 72) / 150) {
+          if (getStringWidth(textValue) < (field.width * 72) / 100) {
             textValue += c;
           }
         }
@@ -278,7 +306,7 @@ function generateBody(data, left, top, doc) {
       }
 
       createText({
-        text: textValue || "",
+        text: `${textValue}` || "",
         x: left,
         y: top,
         props: {

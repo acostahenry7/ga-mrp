@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 
 const baseColor = "#58585a";
-const baseFontSize = 7;
+const baseFontSize = 6;
 const subtitleFontSize = baseFontSize + 1;
 const titleFontSize = baseFontSize + 2;
 
