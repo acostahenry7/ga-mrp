@@ -388,12 +388,13 @@ const MrpForm = ({
     return fields;
   };
 
-  const [brandName, setBrandName] = useState(brands[0]?.U_description);
+  const [brandName, setBrandName] = useState(brands[0]?.U_brand_code);
   const [stockSummary, setStockSummary] = useState([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [showDetail, setShowDetail] = useState(false);
   const [detailData, setDetailData] = useState([]);
+  const [toUpdate, setToUpdate] = useState([]);
   const [months, setMonths] = useState([]);
   const [currentOrder, setCurrentOrder] = useState({});
   const [currencySymbol, setCurrencySymbol] = useState(data?.U_currency);
@@ -401,6 +402,35 @@ const MrpForm = ({
   const [keepUpdateOpened, setKeepUpdateOpened] = useState(true);
   const [fetchNewRefs, setFetchNewRefs] = useState(false);
   const [detailSearch, setDetailSearch] = useState("");
+
+  const hadlePriceSuggestion = (row) => {
+    let currentBrand = brands.find(
+      (item) => item.U_brand_id == form.values.brandId
+    );
+
+    const {
+      stock,
+      avgDemand,
+      salesVariance,
+      standardDeviation,
+      safetyStock,
+      reorderPoint,
+      suggestedAmount,
+    } = getSuggestedAmount({
+      ...row,
+      brand: currentBrand,
+    });
+
+    return {
+      stock,
+      avgDemand,
+      salesVariance,
+      standardDeviation,
+      safetyStock,
+      reorderPoint,
+      suggestedAmount,
+    };
+  };
 
   const form = useFormik({
     initialValues: getInitialValues(),
@@ -547,16 +577,68 @@ const MrpForm = ({
           currency: values.currency,
           lastModifiedBy: session?.userData?.UserName,
           providerCode: values.providerCode,
-          detail: detailData.map((item) => {
-            return {
-              itemCode: item.item_code,
-              orderAmount: parseFloat(item.order_amount),
-              price: parseFloat(item.last_purchase_price),
-              actualPrice: parseFloat(item.price || item.last_purchase_price),
-              lineTotal: getRowPrice(item),
-            };
-          }),
+          detail: toUpdate
+            .filter((item) => !item.isNewItem)
+            .map((item) => {
+              return {
+                itemCode: item.item_code,
+                orderAmount: parseFloat(item.order_amount),
+                price: parseFloat(item.last_purchase_price),
+                actualPrice: parseFloat(item.price || item.last_purchase_price),
+                lineTotal: getRowPrice(item),
+              };
+            }),
+          newItems: [...detailData]
+            .filter((item) => item.isNewItem)
+            .map((item) => {
+              // let sales = {};
+              // let i = 0;
+              // for (let t of item.amounts) {
+              //   let suffix = `${i + 1}`.padStart(2, "0");
+              //   sales[`sales${suffix}`] = t;
+              //   i++;
+              // }
+
+              return {
+                itemCode: item.item_code,
+                factoryItemCode: item.factory_item_code || "",
+                description: item.detail_description?.replace(/'/g, "''"),
+                alternativeReferences: item.alternative_references || "",
+                model: item.model?.replace(/'/g, "''") || "",
+                invStock: parseFloat(item.inv_stock),
+                invTransit: parseFloat(item.inv_transit),
+                frequency: "MEDIA",
+                rating: "B",
+                price: parseFloat(item.last_purchase_price),
+                actualPrice: parseFloat(item.price || item.last_purchase_price),
+                currency: item.currency,
+                avgDemand: item.avg_demand,
+                demandVariance: getCalculations(item).salesVariance || 0,
+                leadtimeVariance: getCalculations(item).leadtimeVariance || 0,
+                standardDeviation: getCalculations(item).standardDeviation || 0,
+                safetyStock: getCalculations(item).safetyStock || 0,
+                reorderPoint: item.reorder_point,
+                suggestedAmount: item.detail_suggested_amount,
+                orderAmount: item.order_amount,
+                lineTotal: item.line_total,
+                sales_01: item.sales_01,
+                sales_02: item.sales_02,
+                sales_03: item.sales_03,
+                sales_04: item.sales_04,
+                sales_05: item.sales_05,
+                sales_06: item.sales_06,
+                sales_07: item.sales_07,
+                sales_08: item.sales_08,
+                sales_09: item.sales_09,
+                sales_10: item.sales_10,
+                sales_11: item.sales_11,
+                sales_12: item.sales_12,
+                isIncluded: item.is_included,
+              };
+            }),
         };
+
+        console.log("UPDATING...", updateMrp);
 
         setIsFormLoading(true);
         updateMrpApi({ mrpId: data.U_mrp_id }, updateMrp)
@@ -600,7 +682,6 @@ const MrpForm = ({
 
         newData.push(obj);
       }
-      console.log(newData);
 
       setDetailData(newData);
     } else {
@@ -640,26 +721,16 @@ const MrpForm = ({
   //   loadPreviousData();
   // }, []);
 
-  const hadlePriceSuggestion = (row) => {
-    let currentBrand = brands.find(
-      (item) => item.U_brand_id == form.values.brandId
-    );
-
-    const { suggestedAmount, reorderPoint, avgDemand } = getSuggestedAmount({
-      ...row,
-      brand: currentBrand,
-    });
-
-    return { suggestedAmount, reorderPoint, avgDemand };
-  };
   const loadPreviousData = async () => {
+    //console.log(data);
+
     try {
       setIsLoading(true);
 
       const sm = await getStockSummaryApi({
         year: form.values.year,
         month: form.values.month,
-        brand: brandName,
+        brand: isCreate ? brandName : data.U_brand_code,
       });
       setIsLoading(false);
 
@@ -683,7 +754,84 @@ const MrpForm = ({
       if (isCreate) {
         setStockSummary(arr);
       } else {
-        console.log("UPDATING", sm.groupedData);
+        console.log(arr);
+
+        let newArr = [];
+        for (let item of sm.groupedData) {
+          newArr.push({
+            item_code: item.item_code,
+            factory_item_code: item.factory_item_code || "",
+            detail_description: item.description,
+            alternative_references: "",
+            model: item.model,
+            inv_stock: item.inv_stock,
+            inv_transit: item.inv_transit,
+            sum_inv_trans:
+              parseFloat(item.inv_stock) + parseFloat(item.inv_transit),
+            frequency: "MEDIA",
+            avg_demand: hadlePriceSuggestion(item).avgDemand,
+            reorder_point: hadlePriceSuggestion(item).reorderPoint,
+            rating: "B",
+            last_purchase_price: parseFloat(item.last_purchase_price),
+            price: parseFloat(item.last_purchase_price),
+            currency: item.currency,
+            detail_suggested_amount: hadlePriceSuggestion(item).suggestedAmount,
+            order_amount: hadlePriceSuggestion(item).suggestedAmount,
+            line_total: (() => {
+              let price = item.price || item.last_purchase_price;
+              let amount =
+                item.order_amount || hadlePriceSuggestion(item).suggestedAmount;
+
+              return currencyFormat(
+                parseFloat(price) * parseFloat(amount),
+                false
+              );
+            })(),
+            sales_01: item.amounts[0],
+            sales_02: item.amounts[1],
+            sales_03: item.amounts[2],
+            sales_04: item.amounts[3],
+            sales_05: item.amounts[4],
+            sales_06: item.amounts[5],
+            sales_07: item.amounts[6],
+            sales_08: item.amounts[7],
+            sales_09: item.amounts[8],
+            sales_10: item.amounts[9],
+            sales_11: item.amounts[10],
+            sales_12: item.amounts[11],
+            is_included: "Y",
+            isNewItem: true,
+          });
+        }
+
+        if (fetchNewRefs == true) {
+          setToUpdate((prev) => [
+            ...prev,
+            ...newArr.filter((item) => {
+              if (
+                detailData.some(
+                  (sbItem) => item.item_code == sbItem.item_code
+                ) == false
+              ) {
+                return item;
+              }
+            }),
+          ]);
+
+          setDetailData((prev) => [
+            ...prev,
+            ...newArr.filter((item) => {
+              if (
+                prev.some((sbItem) => item.item_code == sbItem.item_code) ==
+                false
+              ) {
+                return item;
+              }
+            }),
+          ]);
+
+          setFetchNewRefs(false);
+        }
       }
       setMonths(sm.months);
     } catch (error) {
@@ -720,6 +868,23 @@ const MrpForm = ({
     }
 
     isCreate ? setStockSummary(arr) : setDetailData(arr);
+
+    if (isCreate == false) {
+      let tempUpdate = [...toUpdate];
+      let prevIndex = tempUpdate.findIndex(
+        (item) => item.item_code == arr[index].item_code
+      );
+
+      if (prevIndex >= 0) {
+        tempUpdate[prevIndex].order_amount == arr[index].order_amount;
+        //tempUpdate[prevIndex].price == arr[index].price;
+        tempUpdate[prevIndex].actual_price == arr[index].price;
+      } else {
+        tempUpdate.push(arr[index]);
+      }
+
+      setToUpdate(tempUpdate);
+    }
 
     if (!targetElementId) {
       console.log("hi");
@@ -1114,7 +1279,7 @@ const MrpForm = ({
                 let currentBrand = brands.find(
                   (item) => item.U_brand_id == e.target.value
                 );
-                setBrandName(currentBrand.U_description);
+                setBrandName(currentBrand.U_brand_code);
                 handleMrpCodeChange(e.target.value);
               }}
             >

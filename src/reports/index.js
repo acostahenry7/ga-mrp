@@ -22,7 +22,7 @@ export async function generateReport(params, data) {
   const fileName = params?.fileName || "generic.pdf";
   const doc = initializeReport();
 
-  console.log(data);
+  console.log(data.detail.filter((item) => item.U_order_amount > 0).length);
 
   const printData = {
     ...data,
@@ -30,6 +30,8 @@ export async function generateReport(params, data) {
       data.detail
         .map((item) => ({
           ...item,
+          U_avg_demand: Math.round(parseFloat(item.U_avg_demand)),
+          U_reorder_point: Math.round(parseFloat(item.U_reorder_point)),
           invTransit:
             parseFloat(item.U_inv_stock) + parseFloat(item.U_inv_transit),
         }))
@@ -165,7 +167,7 @@ function generateBody(data, left, top, doc) {
         label: `${monthNum}`,
         field: `U_sales_${month}`,
         width: i == 11 ? width + 7 : width,
-        type: "number",
+        type: "amount",
       });
 
       monthNum++;
@@ -202,44 +204,44 @@ function generateBody(data, left, top, doc) {
       label: "Inventario",
       field: "U_inv_stock",
       width: columnDefaultWidth,
-      type: "number",
+      type: "amount",
     },
     {
       label: "Tránsito",
       field: "U_inv_transit",
-      width: columnDefaultWidth,
-      type: "number",
+      width: columnDefaultWidth + 2,
+      type: "amount",
     },
     {
-      label: "Inventario\nTotal",
+      label: "Inv + Trans",
       field: "invTransit",
       width: columnDefaultWidth - 5,
-      type: "number",
+      type: "amount",
     },
     ...getSalesFields(),
     {
       label: "Promedio\nde ventas",
       field: "U_avg_demand",
       width: columnDefaultWidth,
-      type: "number",
+      type: "amount",
     },
     {
       label: "Punto de\nreorden",
       field: "U_reorder_point",
       width: columnDefaultWidth,
-      type: "number",
+      type: "amount",
     },
     {
       label: "Cantatidad\nsugerida",
       field: "U_detail_suggested_amount",
       width: columnDefaultWidth,
-      type: "number",
+      type: "amount",
     },
     {
       label: "Cantidad\na pedir",
       field: "U_order_amount",
       width: columnDefaultWidth,
-      type: "number",
+      type: "amount",
     },
     {
       label: "Ult. Precio\ncompra",
@@ -263,8 +265,27 @@ function generateBody(data, left, top, doc) {
 
   console.log(fields);
 
+  const addPageNum = (num) => {
+    createText({
+      text: `${num} de ${
+        Math.floor(
+          data.detail.filter((item) => item.U_order_amount > 0).length / 38
+        ) + 1
+      }`,
+      x: 344,
+      y: 210,
+      props: { align: "right" },
+    });
+  };
+
   let itemsCol = 4;
   const createTableHeader = () => {
+    createText({
+      type: "subtitle",
+      text: "Ventas (últimos 12 meses)",
+      y: top - 5,
+      x: 190,
+    });
     fields.map((field, index) => {
       createText({
         type: "subtitle",
@@ -282,12 +303,17 @@ function generateBody(data, left, top, doc) {
   };
   createTableHeader();
   top += 2;
+  let currentPage = 1;
+  addPageNum(currentPage);
   data.detail.map((item, index) => {
     left = defaultX;
     fields.map((field) => {
       let textValue = item[field.field];
-      if (field.type === "number" && !field.field.includes("U_sales")) {
+      if (field.type === "number") {
         textValue = currencyFormat(item[field.field], false);
+      }
+      if (field.type === "amount") {
+        textValue = currencyFormat(item[field.field], false, 0);
       }
 
       if (
@@ -310,7 +336,8 @@ function generateBody(data, left, top, doc) {
         x: left,
         y: top,
         props: {
-          align: field.type == "number" ? "right" : "left",
+          align:
+            field.type == "number" || field.type == "amount" ? "right" : "left",
         },
       });
       left += field.width;
@@ -318,6 +345,8 @@ function generateBody(data, left, top, doc) {
 
     if (top >= textLimit - 15) {
       doc.addPage();
+      currentPage += 1;
+      addPageNum(currentPage);
       top = 10;
       left = defaultX;
       createTableHeader();

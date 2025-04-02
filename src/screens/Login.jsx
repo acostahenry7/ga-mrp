@@ -45,12 +45,22 @@ const Login = () => {
           if (response.error == true) {
             throw response;
           } else {
+            console.log("hi");
+
             signin(response.body);
           }
         })
         .catch((err) => {
           console.log(err);
-          setError(err.body);
+          if (typeof err.body != "object") {
+            setError(err.body);
+          } else {
+            if (err.status === 401) {
+              setError("Acceso no autorizado");
+            } else {
+              setError("Error interno del servidor");
+            }
+          }
         })
         .finally(() => {
           setIsLoading(false);
