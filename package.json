@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "file-saver": "^2.0.5",
     "formik": "^2.4.6",
     "jspdf": "^2.5.2",
     "lodash": "^4.17.21",
@@ -20,6 +21,7 @@
     "react-loader-spinner": "^6.1.6",
     "react-router": "^7.1.1",
     "react-virtualized": "^9.22.6",
+    "xlsx": "^0.18.5",
     "yup": "^1.6.1"
   },
   "devDependencies": {

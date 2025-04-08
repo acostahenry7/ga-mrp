@@ -33,12 +33,14 @@ import { BiBlock, BiSync } from "react-icons/bi";
 import { generateReport } from "../reports";
 import SearchSelect from "../components/SearchSelect";
 import { FcUp } from "react-icons/fc";
-import { FaAngleDown, FaAngleUp } from "react-icons/fa";
+import { FaAngleDown, FaAngleUp, FaFileExport } from "react-icons/fa";
 import { DNA, Oval } from "react-loader-spinner";
 import { PiFileDoc } from "react-icons/pi";
 import { createPurchaseOrderDraftApi } from "../api/PurchaseOderDraft";
 import useDisableScroll from "../hooks/useDisableScroll";
 import { dt } from "../helpers/ui";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 
 const Home = () => {
   const { session, signout } = useAuth();
@@ -144,6 +146,22 @@ const Home = () => {
       });
   };
 
+  const exportToExcel = (data, fileName = "export") => {
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+
+    const excelBuffer = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+    });
+    const dataBlob = new Blob([excelBuffer], {
+      type: "application/octet-stream",
+    });
+
+    saveAs(dataBlob, `${fileName}.xlsx`);
+  };
+
   const columns = [
     {
       name: "Código",
@@ -245,6 +263,48 @@ const Home = () => {
             icon: <FiEdit color="#7c7c22" />,
             action: () => {
               handleOpenForm("EDIT", row);
+            },
+          },
+          {
+            label: "Exportar a excel",
+            icon: <FaFileExport color="#13b351" />,
+            action: () => {
+              const getDetail = (item) => {
+                let targetFields = {};
+
+                let monthNum = parseInt(row.U_start_month);
+                for (let i = 0; i < 12; i++) {
+                  let month = `${i + 1}`.padStart(2, "0");
+
+                  (targetFields[getLabelNameByDateEntity("months", monthNum)] =
+                    item[`U_sales_${month}`]),
+                    monthNum++;
+                  if (monthNum > 12) {
+                    monthNum = 1;
+                  }
+                }
+
+                return targetFields;
+              };
+
+              let dataSet1 = row.detail?.map((item) => ({
+                "No. artículo": item.U_item_code,
+                Descripción: item.U_detail_description,
+                Modelo: item.U_model,
+                Inventario: item.U_inv_stock,
+                Tránsito: item.U_inv_transit,
+                "Inv + Trans": item.sum_inv_trans,
+                ...getDetail(item),
+                "Promedio de ventas": parseFloat(item.U_avg_demand),
+                "Punto de reorden": parseFloat(item.U_reorder_point),
+                "Cantidad sugerida": item.U_detail_suggested_amount,
+                "Cantidad a pedir": item.U_order_amount,
+                "Ult. Precio compra": parseFloat(item.last_purchase_price),
+                Precio: parseFloat(item.price),
+                Total: parseFloat(item.U_line_total),
+              }));
+
+              exportToExcel(dataSet1, `Sugerido-${row.Name}`);
             },
           },
           {
