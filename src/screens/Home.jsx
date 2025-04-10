@@ -287,22 +287,24 @@ const Home = () => {
                 return targetFields;
               };
 
-              let dataSet1 = row.detail?.map((item) => ({
-                "No. artículo": item.U_item_code,
-                Descripción: item.U_detail_description,
-                Modelo: item.U_model,
-                Inventario: item.U_inv_stock,
-                Tránsito: item.U_inv_transit,
-                "Inv + Trans": item.sum_inv_trans,
-                ...getDetail(item),
-                "Promedio de ventas": parseFloat(item.U_avg_demand),
-                "Punto de reorden": parseFloat(item.U_reorder_point),
-                "Cantidad sugerida": item.U_detail_suggested_amount,
-                "Cantidad a pedir": item.U_order_amount,
-                "Ult. Precio compra": parseFloat(item.last_purchase_price),
-                Precio: parseFloat(item.price),
-                Total: parseFloat(item.U_line_total),
-              }));
+              let dataSet1 = row.detail
+                ?.filter((item) => item.U_order_amount > 0)
+                .map((item) => ({
+                  "No. artículo": item.U_item_code,
+                  Descripción: item.U_detail_description,
+                  Modelo: item.U_model,
+                  Inventario: item.U_inv_stock,
+                  Tránsito: item.U_inv_transit,
+                  "Inv + Trans": item.sum_inv_trans,
+                  ...getDetail(item),
+                  "Promedio de ventas": parseFloat(item.U_avg_demand),
+                  "Punto de reorden": parseFloat(item.U_reorder_point),
+                  "Cantidad sugerida": item.U_detail_suggested_amount,
+                  "Cantidad a pedir": item.U_order_amount,
+                  "Ult. Precio compra": parseFloat(item.last_purchase_price),
+                  Precio: parseFloat(item.price),
+                  Total: parseFloat(item.U_line_total),
+                }));
 
               exportToExcel(dataSet1, `Sugerido-${row.Name}`);
             },
