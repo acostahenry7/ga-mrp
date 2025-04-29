@@ -31,7 +31,9 @@ const DtMenu = ({ options = [], status }) => {
   }, []);
 
   if (status != "OPENED") {
-    options = options.filter((item) => item.label == "Imprimir");
+    options = options.filter(
+      (item) => item.label == "Imprimir" || item.label == "Exportar a excel"
+    );
   }
 
   return (
