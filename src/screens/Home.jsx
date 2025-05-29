@@ -29,7 +29,7 @@ import {
   getCurrentDate,
   getLabelNameByDateEntity,
 } from "../helpers/uiFormat";
-import { BiBlock, BiSync } from "react-icons/bi";
+import { BiBlock, BiFile, BiSync } from "react-icons/bi";
 import { generateReport } from "../reports";
 import SearchSelect from "../components/SearchSelect";
 import { FcUp } from "react-icons/fc";
@@ -41,6 +41,7 @@ import useDisableScroll from "../hooks/useDisableScroll";
 import { dt } from "../helpers/ui";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { BsArrowRight } from "react-icons/bs";
 
 const Home = () => {
   const { session, signout } = useAuth();
@@ -259,6 +260,7 @@ const Home = () => {
       cell: (row) => {
         const options = [
           {
+            id: 1,
             label: "Editar",
             icon: <FiEdit color="#7c7c22" />,
             action: () => {
@@ -266,6 +268,7 @@ const Home = () => {
             },
           },
           {
+            id: 2,
             label: "Exportar a excel",
             icon: <FaFileExport color="#13b351" />,
             action: () => {
@@ -310,6 +313,7 @@ const Home = () => {
             },
           },
           {
+            id: 3,
             label: "Imprimir",
             icon: <FiPrinter color="rgb(64 112 133)" />,
             action: () => {
@@ -318,11 +322,13 @@ const Home = () => {
             },
           },
           {
+            id: 4,
             label: "Generar pedido SAP",
             icon: <PiFileDoc color="darkblue" />,
             action: () => createDraftOrderhandler(row),
           },
           {
+            id: 5,
             label: "Cancelar",
             icon: <BiBlock color="red" />,
             action: () => handleDelete(row.U_mrp_id),
@@ -455,6 +461,7 @@ const MrpForm = ({
 
   const [isLoading, setIsLoading] = useState(true);
   const [showDetail, setShowDetail] = useState(false);
+  const [amountOfMonths, setAmountOfMonths] = useState(6);
   const [detailData, setDetailData] = useState([]);
   const [toUpdate, setToUpdate] = useState([]);
   const [months, setMonths] = useState([]);
@@ -761,8 +768,11 @@ const MrpForm = ({
 
     return arr.filter((item) => {
       let description = item.description || item.detail_description;
-      let match = item?.item_code + description;
-      return match.includes(detailSearch);
+      let match = item?.item_code + description + item?.model;
+
+      let searchedText = detailSearch.split(",");
+      return searchedText.some((keyword) => match.includes(keyword));
+      //return match.includes(detailSearch);
     });
   };
 
@@ -1069,7 +1079,7 @@ const MrpForm = ({
       });
     });
 
-    return showDetail ? arr : [];
+    return showDetail ? arr.slice(12 - amountOfMonths, 12) : [];
   };
 
   const totalCreationMrp = stockSummary.reduce((acc, item) => {
@@ -1088,6 +1098,8 @@ const MrpForm = ({
   }, 0);
 
   const sortDtData = (key) => {
+    console.log(stockSummary);
+
     let arr = [];
     if (isCreate) {
       arr = [...stockSummary];
@@ -1148,7 +1160,7 @@ const MrpForm = ({
   const firstDefaultCols = [
     {
       label: "Codigo",
-      width: dt.width.name + 15,
+      width: dt.width.id,
       dataKey: "item_code",
       cellRenderer: (row) => (
         <span
@@ -1156,6 +1168,19 @@ const MrpForm = ({
           className="cursor-pointer font-medium hover:text-green-600 py-3 box-border rounded-full active:text-green-800 duration-200"
         >
           {row.item_code}
+        </span>
+      ),
+    },
+    {
+      label: "Codigo anterior",
+      width: dt.width.id,
+      dataKey: "factory_item_code",
+      cellRenderer: (row) => (
+        <span
+          onClick={() => navigator.clipboard.writeText(row.factory_item_code)}
+          className="cursor-pointer font-medium hover:text-green-600 py-3 box-border rounded-full active:text-green-800 duration-200"
+        >
+          {row.factory_item_code}
         </span>
       ),
     },
@@ -1170,6 +1195,14 @@ const MrpForm = ({
       label: "Modelo",
       width: dt.width.name,
       dataKey: "model",
+      cellRenderer: (row) => (
+        <span
+          onClick={() => navigator.clipboard.writeText(row.model)}
+          className="cursor-pointer font-medium hover:text-green-600 py-3 box-border rounded-full active:text-green-800 duration-200"
+        >
+          {row.model}
+        </span>
+      ),
     },
     {
       label: "Inventario",
@@ -1197,7 +1230,9 @@ const MrpForm = ({
       width: dt.width.amount,
       dataKey: isCreate ? "avgDemand" : "avg_demand",
       cellRenderer: (row, dataKey) =>
-        currencyFormat(Math.trunc(row[dataKey]), false),
+        Math.round(row[dataKey]) == 0
+          ? parseFloat(row[dataKey])?.toFixed(2)
+          : Math.round(row[dataKey]),
     },
     {
       label: "Punto reorden",
@@ -1303,7 +1338,9 @@ const MrpForm = ({
   const dtWidth = columns.reduce((acc, item) => acc + item.width + 10, 0);
 
   function toggleDetails() {
+    setAmountOfMonths(6);
     setShowDetail((prev) => !prev);
+
     // if (showDetail == false) {
     //   setIsLoading(true);
     //   setColumns([
@@ -1322,11 +1359,11 @@ const MrpForm = ({
 
   return (
     <Modal>
-      <div>
+      <div className="">
         <h4 className="text-base font-semibold text-text-primary tracking-wide">
           {isCreate ? "NUEVO SUGERIDO" : "EDITAR SUGERIDO"}
         </h4>
-        <div className="mt-4 max-sm:h-[50vh] h-[70vh] overflow-y-auto overflow-x-hidden">
+        <div className="mt-4 max-sm:h-[50vh] h-[80vh] overflow-y-auto overflow-x-hidden">
           <div className="form-section">
             <label htmlFor="" className="form-label">
               Marca
@@ -1515,21 +1552,41 @@ const MrpForm = ({
                   <BiSync size={20} /> Cargar nuevas referencias
                 </button>
                 <button
-                  className="text-blue-400 hover:bg-slate-200 bg-light-blue duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
+                  onClick={() => {}}
+                  className="flex items-center hover:bg-slate-200 bg-light-blue  duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
+                >
+                  <BiFile size={20} /> Subir archivo
+                </button>
+                <button
+                  className={` hover:bg-slate-200 bg-light-blue duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300 ${
+                    showDetail ? "bg-slate-200" : ""
+                  }`}
                   onClick={() => {
                     toggleDetails();
                   }}
                 >
-                  {showDetail ? "Ocultar" : "Mostrar"} detalles
+                  {showDetail ? "Ocultar" : "Mostrar"} detalle
                 </button>
+                {showDetail && (
+                  <select
+                    className=" cursor-pointer hover:bg-slate-200 bg-light-blue  duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
+                    onChange={(e) => setAmountOfMonths(e.target.value)}
+                  >
+                    <option value={3}>3 meses</option>
+                    <option selected value={6}>
+                      6 meses
+                    </option>
+                    <option value={12}>12 meses</option>
+                  </select>
+                )}
               </div>
               <div>
                 <span className="text-dark-gray">Buscar</span>
                 <input
                   id="detail-search"
                   type="search"
-                  className="ml-3 form-input w-60 h-10"
-                  placeholder="Codigo, descripción..."
+                  className="ml-3 form-input w-[500px] h-10"
+                  placeholder="Codigo, descripción, modelo (ej, x1, x2, xn)"
                   value={detailSearch}
                   onChange={(e) =>
                     setDetailSearch(e.target.value.toLocaleUpperCase())

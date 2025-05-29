@@ -1,10 +1,11 @@
 export const dt = {
   width: {
+    id: 160,
     amount: 100,
-    amount_detail: 50,
+    amount_detail: 40,
     input: 150,
     price: 100,
-    name: 110,
-    description: 150,
+    name: 200,
+    description: 265,
   },
 };
