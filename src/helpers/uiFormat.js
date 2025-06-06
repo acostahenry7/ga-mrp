@@ -21,12 +21,14 @@ function getCompanyNameBySchema(schema) {
     { label: "Motoplex", value: "DB_MP" },
     { label: "KTM Import", value: "DB_KI" },
     { label: "Cycle Lab", value: "DB_CL" },
-    { label: "Avant Auto TEST", value: "DB_AA_TEST" },
+    { label: "Avant Auto TEST", value: "DB_AA_TEST02" },
   ];
 
-  return companies
-    .find((company) => company.value === schema)
-    .label.toUpperCase();
+  return (
+    companies
+      .find((company) => company.value === schema)
+      ?.label?.toUpperCase() || "INVALID SCHEMA NAME"
+  );
 }
 
 function getCurrentDate() {

@@ -10,6 +10,13 @@ async function getStockSummaryApi(params) {
 
   //schema=${params.schema}&month=${params.month}&brand=${params.brand}&year=${params.year}
 }
+
+async function getModelsApi(params) {
+  return fetch(`${process.env.REACT_APP_API}/models${getUrlParams(params)}`)
+    .then((res) => res.json())
+    .then((data) => data)
+    .catch((err) => err);
+}
 async function getProvidersApi(params) {
   return fetch(`${process.env.REACT_APP_API}/providers${getUrlParams(params)}`)
     .then((res) => res.json())
@@ -83,6 +90,7 @@ export {
   getMrpApi,
   getStockSummaryApi,
   getNextMrpApi,
+  getModelsApi,
   getProvidersApi,
   getCurrenciesApi,
 };

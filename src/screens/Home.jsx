@@ -7,6 +7,7 @@ import "react-virtualized/styles.css";
 import {
   createMrpApi,
   getCurrenciesApi,
+  getModelsApi,
   getMrpApi,
   getNextMrpApi,
   getProvidersApi,
@@ -47,6 +48,7 @@ const Home = () => {
   const { session, signout } = useAuth();
   const [data, setData] = useState([]);
   const [currentData, setCurrentData] = useState({});
+  const [models, setModels] = useState([]);
   const [brands, setBrands] = useState([]);
   const [providers, setProviders] = useState([]);
   const [currencies, setCurrencies] = useState([]);
@@ -102,6 +104,8 @@ const Home = () => {
       try {
         const brandList = await getBrandApi();
         setBrands(brandList);
+        const modelList = await getModelsApi();
+        setModels(modelList);
         const providersList = await getProvidersApi();
         setProviders(providersList);
         const currenciesList = await getCurrenciesApi();
@@ -272,6 +276,8 @@ const Home = () => {
             label: "Exportar a excel",
             icon: <FaFileExport color="#13b351" />,
             action: () => {
+              console.log(row);
+
               const getDetail = (item) => {
                 let targetFields = {};
 
@@ -294,7 +300,9 @@ const Home = () => {
                 ?.filter((item) => item.U_order_amount > 0)
                 .map((item) => ({
                   "No. artículo": item.U_item_code,
+                  "Codigo Fabrica": item.U_factory_item_code,
                   Descripción: item.U_detail_description,
+                  "Descrición Extrajera": item.U_factory_detail_description,
                   Modelo: item.U_model,
                   Inventario: item.U_inv_stock,
                   Tránsito: item.U_inv_transit,
@@ -377,6 +385,7 @@ const Home = () => {
           onClose={handleCloseForm}
           brands={brands}
           providers={providers}
+          models={models}
           currencies={currencies}
         />
       )}
@@ -401,6 +410,7 @@ const MrpForm = ({
   onClose,
   brands,
   providers,
+  //models,
   currencies,
   mode,
 }) => {
@@ -430,6 +440,7 @@ const MrpForm = ({
         currentMonth
       )} ${currentYear} `,
       brandId: brands[0]?.U_brand_id,
+      models: "",
       providerCode: providers[0]?.CardCode,
       currency:
         providers[0]?.Currency == "##"
@@ -444,6 +455,7 @@ const MrpForm = ({
       fields.mrpCode = data?.U_mrp_code;
       fields.description = data?.U_description;
       fields.brandId = data?.U_brand_id;
+      fields.models = data?.models;
       fields.providerCode = data?.U_provider_code;
       fields.currency = data?.U_currency;
 
@@ -457,6 +469,8 @@ const MrpForm = ({
   };
 
   const [brandName, setBrandName] = useState(brands[0]?.U_brand_code);
+  const [modelList, setModelList] = useState([]);
+  const [models, setModels] = useState([]);
   const [stockSummary, setStockSummary] = useState([]);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -564,6 +578,7 @@ const MrpForm = ({
           mrpCode: values.mrpCode,
           description: values.description,
           brandId: values.brandId,
+          models: values.models,
           providerCode: values.providerCode,
           providerName,
           priceTotal: Math.round(
@@ -597,6 +612,10 @@ const MrpForm = ({
               itemCode: item.item_code,
               factoryItemCode: item.factory_item_code || "",
               description: item.description?.replace(/'/g, "''"),
+              factoryDetailDescription: item.factory_description?.replace(
+                /'/g,
+                "''"
+              ),
               alternativeReferences: "",
               model: item.model?.replace(/'/g, "''") || "",
               invStock: parseFloat(item.inv_stock),
@@ -672,6 +691,8 @@ const MrpForm = ({
                 itemCode: item.item_code,
                 factoryItemCode: item.factory_item_code || "",
                 description: item.detail_description?.replace(/'/g, "''"),
+                factoryDetailDescription:
+                  item.U_factory_detail_description?.replace(/'/g, "''"),
                 alternativeReferences: item.alternative_references || "",
                 model: item.model?.replace(/'/g, "''") || "",
                 invStock: parseFloat(item.inv_stock),
@@ -738,7 +759,15 @@ const MrpForm = ({
   };
 
   useEffect(() => {
-    if (!isCreate) {
+    const loadFieldOptions = async () => {
+      const modelList = await getModelsApi();
+      setModels(modelList);
+    };
+    loadFieldOptions();
+  }, []);
+
+  useEffect(() => {
+    if (mode == "EDIT") {
       const newData = [];
 
       for (let item of data.detail) {
@@ -753,6 +782,7 @@ const MrpForm = ({
       }
 
       setDetailData(newData);
+      setIsLoading(false);
     } else {
       handleMrpCodeChange(form.values.brandId);
     }
@@ -760,7 +790,7 @@ const MrpForm = ({
 
   const filterData = () => {
     let arr = [];
-    if (isCreate) {
+    if (mode == "CREATE") {
       arr = [...stockSummary];
     } else {
       arr = [...detailData];
@@ -792,6 +822,7 @@ const MrpForm = ({
 
   //   loadPreviousData();
   // }, []);
+  console.log(data);
 
   const loadPreviousData = async () => {
     //console.log(data);
@@ -803,6 +834,7 @@ const MrpForm = ({
         year: form.values.year,
         month: form.values.month,
         brand: isCreate ? brandName : data.U_brand_code,
+        models: isCreate ? form.values.models || "" : data.U_models || "",
       });
       setIsLoading(false);
 
@@ -912,8 +944,16 @@ const MrpForm = ({
   };
 
   useEffect(() => {
-    loadPreviousData();
-  }, [brandName, form.values.year, form.values.month, fetchNewRefs]);
+    if (mode == "CREATE" || fetchNewRefs == true) {
+      loadPreviousData();
+    }
+  }, [
+    form.values.models,
+    brandName,
+    form.values.year,
+    form.values.month,
+    fetchNewRefs,
+  ]);
 
   const handleUpdate = (id, value, type, targetElementId) => {
     let arr = [];
@@ -1364,31 +1404,69 @@ const MrpForm = ({
           {isCreate ? "NUEVO SUGERIDO" : "EDITAR SUGERIDO"}
         </h4>
         <div className="mt-4 max-sm:h-[50vh] h-[80vh] overflow-y-auto overflow-x-hidden">
-          <div className="form-section">
-            <label htmlFor="" className="form-label">
-              Marca
-            </label>
-            <select
-              id="brand-select"
-              className={`form-input ${isCreate ? "" : "input-disabled"}`}
-              value={form.values.brandId}
-              disabled={isCreate ? "" : true}
-              onChange={(e) => {
-                form.setFieldValue("brandId", e.target.value);
-                let currentBrand = brands.find(
-                  (item) => item.U_brand_id == e.target.value
-                );
-                setBrandName(currentBrand.U_brand_code);
-                handleMrpCodeChange(e.target.value);
-              }}
-            >
-              {/* <option value="">Todas las marcas</option> */}
-              {brands?.map((item) => (
-                <option key={item.U_brand_id} value={item.U_brand_id}>
-                  {item.U_brand_code} - {item.U_description}
-                </option>
-              ))}
-            </select>
+          <div className="flex gap-5 max-sm:gap-0 flex-wrap">
+            <div className="form-section">
+              <label htmlFor="" className="form-label">
+                Marca
+              </label>
+              <select
+                id="brand-select"
+                className={`form-input ${isCreate ? "" : "input-disabled"}`}
+                value={form.values.brandId}
+                disabled={isCreate ? "" : true}
+                onChange={(e) => {
+                  form.setFieldValue("brandId", e.target.value);
+                  let currentBrand = brands.find(
+                    (item) => item.U_brand_id == e.target.value
+                  );
+                  setBrandName(currentBrand.U_brand_code);
+                  handleMrpCodeChange(e.target.value);
+                }}
+              >
+                {/* <option value="">Todas las marcas</option> */}
+                {brands?.map((item) => (
+                  <option key={item.U_brand_id} value={item.U_brand_id}>
+                    {item.U_brand_code} - {item.U_description}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-section">
+              <label htmlFor="" className="form-label">
+                Modelos
+              </label>
+              <SearchSelect
+                customId="model-select"
+                options={
+                  mode == "CREATE"
+                    ? models
+                    : data?.U_models?.length > 0
+                    ? data?.U_models?.split(",").map((item) => ({
+                        model: item,
+                        selected: true,
+                      }))
+                    : []
+                }
+                fields={{
+                  key: "model",
+                  value: "model",
+                  keyOnLabel: false,
+                }}
+                variant="INPUT"
+                multiple
+                defaultValue={""}
+                onChange={(item) => {
+                  if (mode == "CREATE") {
+                    let modelStr = item
+                      ?.map((item) => item.model.replace(/'/g, ""))
+                      ?.join(",");
+                    console.log(data);
+
+                    form.setFieldValue("models", modelStr);
+                  }
+                }}
+              />
+            </div>
           </div>
           <div className="form-section">
             <label htmlFor="" className="form-label">
@@ -1546,7 +1624,7 @@ const MrpForm = ({
             <div className="flex gap-3 justify-between">
               <div className="flex gap-2">
                 <button
-                  onClick={() => setFetchNewRefs((prev) => !prev)}
+                  onClick={() => setFetchNewRefs(true)}
                   className="flex items-center hover:bg-slate-200 bg-light-blue  duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
                 >
                   <BiSync size={20} /> Cargar nuevas referencias

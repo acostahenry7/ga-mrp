@@ -8,11 +8,13 @@ const SearchSelect = ({
   fields,
   variant = "FILTER",
   onChange,
+  multiple = false,
 }) => {
   const [search, setSearch] = useState(defaultValue || "");
-  const [filteredOptions, setFilteredOptions] = useState(options);
+  const [filteredOptions, setFilteredOptions] = useState([...options]);
   const [selected, setSelected] = useState(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [seeAll, setSeeAll] = useState(true);
   const dropdownRef = useRef(null);
 
   const variants = {
@@ -28,12 +30,22 @@ const SearchSelect = ({
 
   useEffect(() => {
     setFilteredOptions(
-      options.filter((option) => {
+      [...options].filter((option) => {
         let targetText =
           option[fields.key]?.toLowerCase() +
           " " +
           option[fields.value]?.toLowerCase();
-        return targetText.includes(search?.toLowerCase());
+
+        if (multiple) {
+          let searchedText = search.split(",");
+          //return searchedText.some((keyword) => targetText.includes(keyword));
+
+          return targetText.includes(
+            searchedText[searchedText.length - 1]?.toLowerCase()
+          );
+        } else {
+          return targetText.includes(search?.toLowerCase());
+        }
       })
     );
   }, [search, options]);
@@ -49,14 +61,50 @@ const SearchSelect = ({
   }, []);
 
   const handleSelect = (option) => {
-    setSelected(option);
-    setSearch(option[fields.value]);
-    setIsOpen(false);
+    if (!multiple) {
+      setSelected(option);
+      setSearch(option[fields.value]);
+      setIsOpen(false);
+    } else {
+      let newOptions = [...filteredOptions];
+      newOptions.map((item) => {
+        if (item[fields.key] == option[fields.key]) {
+          if (!item.selected) {
+            // setSearch((prev) => {
+            //   let text = "";
+            //   if (prev) {
+            //     if (prev?.charAt(prev.length - 1) != ",") {
+            //       text = prev.slice(0, prev.lastIndexOf(",") + 1);
+            //       return (text += option[fields.value] + ",");
+            //     }
+            //   }
+
+            //   return prev + option[fields.value] + ",";
+            // });
+            setSearch("");
+          }
+          item.selected = !item.selected;
+        }
+      });
+      setFilteredOptions(newOptions);
+      setSelected(newOptions.filter((item) => item.selected));
+    }
   };
 
   useEffect(() => {
     onChange(selected);
   }, [selected]);
+
+  const toggleShowSelectedAll = () => {
+    if (seeAll) {
+      let selected = [...filteredOptions].filter((item) => item.selected);
+      setFilteredOptions(selected);
+    } else {
+      setFilteredOptions([...options]);
+    }
+
+    setSeeAll((prev) => !prev);
+  };
 
   return (
     <div className="relative w-full" ref={dropdownRef}>
@@ -68,9 +116,23 @@ const SearchSelect = ({
         onClick={() => setIsOpen(true)}
         placeholder={selected ? selected.label : placeholder}
         className={variants[variant].inputClasses}
+        autoComplete="off"
       />
+      {multiple && (
+        <span
+          className="text-blue-400 ml-2 cursor-pointer text-sm absolute top-[22px] right-12"
+          onClick={toggleShowSelectedAll}
+        >
+          Ver {seeAll ? "seleccionados" : "Todos"}
+        </span>
+      )}
       {isOpen && (
         <ul className={variants[variant].dropdownClasses}>
+          {multiple && (
+            <li className="p-2 hover:bg-gray-200 cursor-pointer text-sm">
+              Todos
+            </li>
+          )}
           {filteredOptions.length > 0 ? (
             filteredOptions.map((option) => (
               <li
@@ -78,7 +140,18 @@ const SearchSelect = ({
                 onClick={() => handleSelect(option)}
                 className="p-2 hover:bg-gray-200 cursor-pointer text-sm"
               >
-                {option[fields.key] + " - " + option[fields.value]}
+                <div className="flex items-center justify-start gap-2">
+                  {multiple && (
+                    <input
+                      type="checkbox"
+                      checked={option.selected}
+                      className="size-4 rounded-sm border-none pointer-events-none"
+                      readOnly
+                    />
+                  )}
+                  {fields.keyOnLabel ? option[fields.key] + " - " : ""}
+                  {option[fields.value]}
+                </div>
               </li>
             ))
           ) : (
