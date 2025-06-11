@@ -83,6 +83,26 @@ async function getNextMrpApi(params) {
     .catch((err) => err);
 }
 
+async function uploadPriceFileApi(params) {
+  const formData = new FormData();
+
+  console.log(params);
+
+  formData.append("name", "test.xlsm");
+  formData.append("file", params.file);
+
+  return fetch(`${process.env.REACT_APP_API}/upload-price-file`, {
+    method: "POST",
+    // headers: {
+    //   "Content-Type": "application/json",
+    // },
+    body: formData,
+  })
+    .then((res) => res.json())
+    .then((data) => data)
+    .catch((err) => err);
+}
+
 export {
   createMrpApi,
   updateMrpApi,
@@ -93,4 +113,5 @@ export {
   getModelsApi,
   getProvidersApi,
   getCurrenciesApi,
+  uploadPriceFileApi,
 };

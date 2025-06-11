@@ -14,6 +14,7 @@ import {
   getStockSummaryApi,
   removeMrpApi,
   updateMrpApi,
+  uploadPriceFileApi,
 } from "../api/mrp";
 import { getBrandApi } from "../api/brand";
 import Modal from "../components/Modal";
@@ -43,6 +44,7 @@ import { dt } from "../helpers/ui";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { BsArrowRight } from "react-icons/bs";
+import ConfirmationModal from "../components/ConfirmationModal";
 
 const Home = () => {
   const { session, signout } = useAuth();
@@ -166,6 +168,8 @@ const Home = () => {
 
     saveAs(dataBlob, `${fileName}.xlsx`);
   };
+
+  // XLSX.utils.sheet_to_json()
 
   const columns = [
     {
@@ -485,6 +489,9 @@ const MrpForm = ({
   const [keepUpdateOpened, setKeepUpdateOpened] = useState(true);
   const [fetchNewRefs, setFetchNewRefs] = useState(false);
   const [detailSearch, setDetailSearch] = useState("");
+  const [priceFile, setPriceFile] = useState(undefined);
+  const [isConfirmationOpened, setIsConfirmationOpened] = useState(false);
+  const [refsToZero, setRefsToZero] = useState(false);
 
   const hadlePriceSuggestion = (row) => {
     let currentBrand = brands.find(
@@ -578,7 +585,7 @@ const MrpForm = ({
           mrpCode: values.mrpCode,
           description: values.description,
           brandId: values.brandId,
-          models: values.models,
+          models: values.models || "all",
           providerCode: values.providerCode,
           providerName,
           priceTotal: Math.round(
@@ -665,6 +672,7 @@ const MrpForm = ({
           currency: values.currency,
           lastModifiedBy: session?.userData?.UserName,
           providerCode: values.providerCode,
+          resetRefs: refsToZero,
           detail: toUpdate
             .filter((item) => !item.isNewItem)
             .map((item) => {
@@ -741,6 +749,7 @@ const MrpForm = ({
             if (keepUpdateOpened == false) {
               onClose();
             }
+            setRefsToZero(false);
           });
       }
     },
@@ -822,7 +831,7 @@ const MrpForm = ({
 
   //   loadPreviousData();
   // }, []);
-  console.log(data);
+  //console.log(data);
 
   const loadPreviousData = async () => {
     //console.log(data);
@@ -877,10 +886,10 @@ const MrpForm = ({
             reorder_point: hadlePriceSuggestion(item).reorderPoint,
             rating: "B",
             last_purchase_price: parseFloat(item.last_purchase_price),
-            price: parseFloat(item.last_purchase_price),
+            price: parseFloat(item.actual_price),
             currency: item.currency,
             detail_suggested_amount: hadlePriceSuggestion(item).suggestedAmount,
-            order_amount: hadlePriceSuggestion(item).suggestedAmount,
+            order_amount: parseInt(item.order_amount), //hadlePriceSuggestion(item).suggestedAmount,
             line_total: (() => {
               let price = item.price || item.last_purchase_price;
               let amount =
@@ -988,9 +997,9 @@ const MrpForm = ({
       );
 
       if (prevIndex >= 0) {
-        tempUpdate[prevIndex].order_amount == arr[index].order_amount;
+        tempUpdate[prevIndex].order_amount = arr[index].order_amount;
         //tempUpdate[prevIndex].price == arr[index].price;
-        tempUpdate[prevIndex].actual_price == arr[index].price;
+        tempUpdate[prevIndex].actual_price = arr[index].price;
       } else {
         tempUpdate.push(arr[index]);
       }
@@ -1337,7 +1346,7 @@ const MrpForm = ({
     {
       label: "Total",
       width: dt.width.price,
-      dataKey: "lineTotal",
+      dataKey: isCreate ? "lineTotal" : "line_total",
       cellRenderer: (row, dataKey) => {
         let price = row.price || row.last_purchase_price;
         let amount =
@@ -1397,291 +1406,396 @@ const MrpForm = ({
     // }
   }
 
+  const uploadPriceFile = () => {
+    //uploconst test = XLSX.readFile(priceFile);
+    console.log(priceFile);
+    let arr;
+
+    setIsLoading(true);
+    uploadPriceFileApi({
+      file: priceFile,
+      filename: priceFile.name,
+    })
+      .then((res) => {
+        if (mode == "CREATE") {
+          arr = [...stockSummary];
+
+          if (refsToZero) {
+            arr.forEach((item) => {
+              item.order_amount = 0;
+              item.price = 0;
+              item.lineTotal = 0;
+            });
+          }
+
+          res.forEach((item) => {
+            let index = arr.findIndex(
+              (el) => el.factory_item_code == item.item_code
+            );
+
+            console.log(index);
+
+            if (index >= 0) {
+              arr[index].order_amount = item.amount;
+              arr[index].price = item.price;
+              arr[index].lineTotal = item.line_total;
+            }
+          });
+
+          console.log(arr);
+
+          setStockSummary(arr);
+        } else {
+          console.log(detailData);
+          arr = [...detailData];
+          let found = [];
+
+          let wasUpdated = false;
+
+          if (refsToZero) {
+            arr.forEach((item) => {
+              item.order_amount = 0;
+              item.price = 0;
+              item.line_total = 0;
+            });
+          }
+
+          res.forEach((item) => {
+            let index = arr.findIndex(
+              (el) => el.factory_item_code == item.item_code
+            );
+
+            if (index >= 0) {
+              arr[index].order_amount = item.amount;
+              arr[index].price = item.price;
+              arr[index].line_total = item.line_total;
+              arr[index].actual_price = item.price;
+              wasUpdated = true;
+              found.push(arr[index]);
+            } else {
+            }
+          });
+          if (wasUpdated) {
+            setDetailData(arr);
+            console.log(found);
+
+            setToUpdate(found);
+          }
+        }
+      })
+      .catch((err) => {
+        console.log(err);
+      })
+      .finally(() => {
+        setIsLoading(false);
+        setIsConfirmationOpened(false);
+      });
+
+    console.log(priceFile);
+  };
+
+  console.log(toUpdate);
+
   return (
-    <Modal>
-      <div className="">
-        <h4 className="text-base font-semibold text-text-primary tracking-wide">
-          {isCreate ? "NUEVO SUGERIDO" : "EDITAR SUGERIDO"}
-        </h4>
-        <div className="mt-4 max-sm:h-[50vh] h-[80vh] overflow-y-auto overflow-x-hidden">
-          <div className="flex gap-5 max-sm:gap-0 flex-wrap">
-            <div className="form-section">
-              <label htmlFor="" className="form-label">
-                Marca
-              </label>
-              <select
-                id="brand-select"
-                className={`form-input ${isCreate ? "" : "input-disabled"}`}
-                value={form.values.brandId}
-                disabled={isCreate ? "" : true}
-                onChange={(e) => {
-                  form.setFieldValue("brandId", e.target.value);
-                  let currentBrand = brands.find(
-                    (item) => item.U_brand_id == e.target.value
-                  );
-                  setBrandName(currentBrand.U_brand_code);
-                  handleMrpCodeChange(e.target.value);
-                }}
-              >
-                {/* <option value="">Todas las marcas</option> */}
-                {brands?.map((item) => (
-                  <option key={item.U_brand_id} value={item.U_brand_id}>
-                    {item.U_brand_code} - {item.U_description}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="form-section">
-              <label htmlFor="" className="form-label">
-                Modelos
-              </label>
-              <SearchSelect
-                customId="model-select"
-                options={
-                  mode == "CREATE"
-                    ? models
-                    : data?.U_models?.length > 0
-                    ? data?.U_models?.split(",").map((item) => ({
-                        model: item,
-                        selected: true,
-                      }))
-                    : []
-                }
-                fields={{
-                  key: "model",
-                  value: "model",
-                  keyOnLabel: false,
-                }}
-                variant="INPUT"
-                multiple
-                defaultValue={""}
-                onChange={(item) => {
-                  if (mode == "CREATE") {
-                    let modelStr = item
-                      ?.map((item) => item.model.replace(/'/g, ""))
-                      ?.join(",");
-                    console.log(data);
-
-                    form.setFieldValue("models", modelStr);
-                  }
-                }}
-              />
-            </div>
-          </div>
-          <div className="form-section">
-            <label htmlFor="" className="form-label">
-              Proveedor
-            </label>
-            <SearchSelect
-              customId="provider-select"
-              options={providers}
-              fields={{ key: "CardCode", value: "CardName", keyOnLabel: true }}
-              variant="INPUT"
-              defaultValue={form.initialValues?.providerCode || ""}
-              onChange={(item) => {
-                if (item?.CardCode) {
-                  form.setFieldValue("providerCode", item?.CardCode);
-                }
-                const targetCurr = providers.find(
-                  (p) => p.CardCode == item?.CardCode
-                )?.Currency;
-
-                if (targetCurr && targetCurr != "##") {
-                  setFormCurr(
-                    currencies.filter((item) => item.CurrCode == targetCurr)
-                  );
-                  setCurrencySymbol(
-                    currencies.find((item) => item.CurrCode == targetCurr)
-                      .DocCurrCod
-                  );
-                } else {
-                  setFormCurr([...currencies]);
-                }
-              }}
-            />
-          </div>
-
-          <div className="w-full flex gap-5 max-sm:gap-0 flex-wrap">
-            <div className="form-section relative">
-              <label htmlFor="" className="form-label">
-                Código
-              </label>
-              <input
-                type="text"
-                className="form-input input-disabled"
-                value={form.values.mrpCode}
-                disabled
-                onChange={(e) => {}}
-              />
-              {/* <span className="absolute right-8 top-14 text-[#B3B3B3] font-roboto font-medium tracking-wide">
-                meses
-              </span> */}
-            </div>
-            <div className="form-section">
-              <label htmlFor="" className="form-label">
-                Descripción
-              </label>
-              <div className="relative">
-                <input
-                  id="description"
-                  type="text"
-                  className="form-input"
-                  value={form.values.description}
-                  onChange={(e) =>
-                    form.setFieldValue(
-                      "description",
-                      e.target.value.toUpperCase()
-                    )
-                  }
-                />
-                <span className="absolute right-4 -top-8 input-error opacity-80">
-                  {form.errors.description}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="w-full flex gap-5 max-sm:gap-0 flex-wrap">
-            <div className="form-section relative">
-              <label htmlFor="" className="form-label">
-                Currency
-              </label>
-
-              <select
-                id="currency-select"
-                className="form-input"
-                value={form.values.currency}
-                onChange={(e) => {
-                  let currentCurrency = currencies.find(
-                    (item) => item.CurrCode == e.target.value
-                  );
-                  setCurrencySymbol(currentCurrency.DocCurrCod);
-                  form.setFieldValue("currency", e.target.value);
-                }}
-                name=""
-              >
-                {formCurr.map(({ CurrCode, CurrName, DocCurrCod }, index) => {
-                  return (
-                    <option key={CurrCode} value={CurrCode}>
-                      {DocCurrCod} - {CurrName}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-            <div className="form-section flex gap-2">
-              <div className="flex-1">
+    <>
+      <Modal>
+        <div className="">
+          <h4 className="text-base font-semibold text-text-primary tracking-wide">
+            {isCreate ? "NUEVO SUGERIDO" : "EDITAR SUGERIDO"}
+          </h4>
+          <div className="mt-4 max-sm:h-[50vh] h-[80vh] overflow-y-auto overflow-x-hidden">
+            <div className="flex gap-5 max-sm:gap-0 flex-wrap">
+              <div className="form-section">
                 <label htmlFor="" className="form-label">
-                  Año
-                </label>
-
-                <select
-                  id="year"
-                  className={`form-input ${isCreate ? "" : "input-disabled"}`}
-                  value={form.values.year}
-                  disabled={isCreate ? "" : true}
-                  onChange={(e) => form.setFieldValue("year", e.target.value)}
-                  name=""
-                >
-                  {Array(10)
-                    .fill(0)
-                    .map((i, index) => {
-                      let val = currentYear - index;
-                      return (
-                        <option key={index} value={val}>
-                          {val}
-                        </option>
-                      );
-                    })}
-                </select>
-              </div>
-              <div className="flex-1">
-                <label htmlFor="" className="form-label">
-                  Mes
+                  Marca
                 </label>
                 <select
-                  id="month"
+                  id="brand-select"
                   className={`form-input ${isCreate ? "" : "input-disabled"}`}
+                  value={form.values.brandId}
                   disabled={isCreate ? "" : true}
-                  value={form.values.month}
-                  onChange={(e) => form.setFieldValue("month", e.target.value)}
-                  name=""
-                >
-                  {Array(12)
-                    .fill(0)
-                    .map((i, index) => {
-                      let val = index + 1;
-                      return (
-                        <option key={index} value={val}>
-                          {val}
-                        </option>
-                      );
-                    })}
-                </select>
-              </div>
-            </div>
-          </div>
-          <div className="form-section">
-            <div className="flex gap-3 justify-between">
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setFetchNewRefs(true)}
-                  className="flex items-center hover:bg-slate-200 bg-light-blue  duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
-                >
-                  <BiSync size={20} /> Cargar nuevas referencias
-                </button>
-                <button
-                  onClick={() => {}}
-                  className="flex items-center hover:bg-slate-200 bg-light-blue  duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
-                >
-                  <BiFile size={20} /> Subir archivo
-                </button>
-                <button
-                  className={` hover:bg-slate-200 bg-light-blue duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300 ${
-                    showDetail ? "bg-slate-200" : ""
-                  }`}
-                  onClick={() => {
-                    toggleDetails();
+                  onChange={(e) => {
+                    form.setFieldValue("brandId", e.target.value);
+                    let currentBrand = brands.find(
+                      (item) => item.U_brand_id == e.target.value
+                    );
+                    setBrandName(currentBrand.U_brand_code);
+                    handleMrpCodeChange(e.target.value);
                   }}
                 >
-                  {showDetail ? "Ocultar" : "Mostrar"} detalle
-                </button>
-                {showDetail && (
-                  <select
-                    className=" cursor-pointer hover:bg-slate-200 bg-light-blue  duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
-                    onChange={(e) => setAmountOfMonths(e.target.value)}
-                  >
-                    <option value={3}>3 meses</option>
-                    <option selected value={6}>
-                      6 meses
+                  {/* <option value="">Todas las marcas</option> */}
+                  {brands?.map((item) => (
+                    <option key={item.U_brand_id} value={item.U_brand_id}>
+                      {item.U_brand_code} - {item.U_description}
                     </option>
-                    <option value={12}>12 meses</option>
-                  </select>
-                )}
+                  ))}
+                </select>
               </div>
-              <div>
-                <span className="text-dark-gray">Buscar</span>
-                <input
-                  id="detail-search"
-                  type="search"
-                  className="ml-3 form-input w-[500px] h-10"
-                  placeholder="Codigo, descripción, modelo (ej, x1, x2, xn)"
-                  value={detailSearch}
-                  onChange={(e) =>
-                    setDetailSearch(e.target.value.toLocaleUpperCase())
+              <div className="form-section">
+                <label htmlFor="" className="form-label">
+                  Modelos
+                </label>
+                <SearchSelect
+                  customId="model-select"
+                  options={
+                    mode == "CREATE"
+                      ? models
+                      : data?.U_models?.length > 0
+                      ? data?.U_models?.split(",").map((item) => ({
+                          model: item,
+                          selected: true,
+                        }))
+                      : []
                   }
+                  fields={{
+                    key: "model",
+                    value: "model",
+                    keyOnLabel: false,
+                  }}
+                  variant="INPUT"
+                  multiple
+                  defaultValue={""}
+                  onChange={(item) => {
+                    if (mode == "CREATE") {
+                      let modelStr = item
+                        ?.map((item) => item.model.replace(/'/g, ""))
+                        ?.join(",");
+                      console.log(data);
+
+                      form.setFieldValue("models", modelStr);
+                    }
+                  }}
                 />
               </div>
             </div>
-          </div>
-          <div className="form-section overflow-x-auto w-full">
-            {/* <label htmlFor="" className="form-label">
+            <div className="form-section">
+              <label htmlFor="" className="form-label">
+                Proveedor
+              </label>
+              <SearchSelect
+                customId="provider-select"
+                options={providers}
+                fields={{
+                  key: "CardCode",
+                  value: "CardName",
+                  keyOnLabel: true,
+                }}
+                variant="INPUT"
+                defaultValue={form.initialValues?.providerCode || ""}
+                onChange={(item) => {
+                  if (item?.CardCode) {
+                    form.setFieldValue("providerCode", item?.CardCode);
+                  }
+                  const targetCurr = providers.find(
+                    (p) => p.CardCode == item?.CardCode
+                  )?.Currency;
+
+                  if (targetCurr && targetCurr != "##") {
+                    setFormCurr(
+                      currencies.filter((item) => item.CurrCode == targetCurr)
+                    );
+                    setCurrencySymbol(
+                      currencies.find((item) => item.CurrCode == targetCurr)
+                        .DocCurrCod
+                    );
+                  } else {
+                    setFormCurr([...currencies]);
+                  }
+                }}
+              />
+            </div>
+
+            <div className="w-full flex gap-5 max-sm:gap-0 flex-wrap">
+              <div className="form-section relative">
+                <label htmlFor="" className="form-label">
+                  Código
+                </label>
+                <input
+                  type="text"
+                  className="form-input input-disabled"
+                  value={form.values.mrpCode}
+                  disabled
+                  onChange={(e) => {}}
+                />
+                {/* <span className="absolute right-8 top-14 text-[#B3B3B3] font-roboto font-medium tracking-wide">
+                meses
+              </span> */}
+              </div>
+              <div className="form-section">
+                <label htmlFor="" className="form-label">
+                  Descripción
+                </label>
+                <div className="relative">
+                  <input
+                    id="description"
+                    type="text"
+                    className="form-input"
+                    value={form.values.description}
+                    onChange={(e) =>
+                      form.setFieldValue(
+                        "description",
+                        e.target.value.toUpperCase()
+                      )
+                    }
+                  />
+                  <span className="absolute right-4 -top-8 input-error opacity-80">
+                    {form.errors.description}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="w-full flex gap-5 max-sm:gap-0 flex-wrap">
+              <div className="form-section relative">
+                <label htmlFor="" className="form-label">
+                  Currency
+                </label>
+
+                <select
+                  id="currency-select"
+                  className="form-input"
+                  value={form.values.currency}
+                  onChange={(e) => {
+                    let currentCurrency = currencies.find(
+                      (item) => item.CurrCode == e.target.value
+                    );
+                    setCurrencySymbol(currentCurrency.DocCurrCod);
+                    form.setFieldValue("currency", e.target.value);
+                  }}
+                  name=""
+                >
+                  {formCurr.map(({ CurrCode, CurrName, DocCurrCod }, index) => {
+                    return (
+                      <option key={CurrCode} value={CurrCode}>
+                        {DocCurrCod} - {CurrName}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div className="form-section flex gap-2">
+                <div className="flex-1">
+                  <label htmlFor="" className="form-label">
+                    Año
+                  </label>
+
+                  <select
+                    id="year"
+                    className={`form-input ${isCreate ? "" : "input-disabled"}`}
+                    value={form.values.year}
+                    disabled={isCreate ? "" : true}
+                    onChange={(e) => form.setFieldValue("year", e.target.value)}
+                    name=""
+                  >
+                    {Array(10)
+                      .fill(0)
+                      .map((i, index) => {
+                        let val = currentYear - index;
+                        return (
+                          <option key={index} value={val}>
+                            {val}
+                          </option>
+                        );
+                      })}
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label htmlFor="" className="form-label">
+                    Mes
+                  </label>
+                  <select
+                    id="month"
+                    className={`form-input ${isCreate ? "" : "input-disabled"}`}
+                    disabled={isCreate ? "" : true}
+                    value={form.values.month}
+                    onChange={(e) =>
+                      form.setFieldValue("month", e.target.value)
+                    }
+                    name=""
+                  >
+                    {Array(12)
+                      .fill(0)
+                      .map((i, index) => {
+                        let val = index + 1;
+                        return (
+                          <option key={index} value={val}>
+                            {val}
+                          </option>
+                        );
+                      })}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="form-section">
+              <div className="flex gap-3 justify-between">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setFetchNewRefs(true)}
+                    className="flex items-center hover:bg-slate-200 bg-light-blue  duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
+                  >
+                    <BiSync size={20} /> Cargar nuevas referencias
+                  </button>
+                  <div className="flex items-center">
+                    {/* <BiFile size={20} />{" "} */}
+                    <input
+                      type="file"
+                      onChange={(e) => setPriceFile(e.target.files[0])}
+                      className="self-center"
+                    />
+                  </div>
+                  <button
+                    className="flex items-center hover:bg-slate-200 bg-light-blue  duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
+                    onClick={() => setIsConfirmationOpened(true)}
+                  >
+                    Subir archivo
+                  </button>
+                  <button
+                    className={` hover:bg-slate-200 bg-light-blue duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300 ${
+                      showDetail ? "bg-slate-200" : ""
+                    }`}
+                    onClick={() => {
+                      toggleDetails();
+                    }}
+                  >
+                    {showDetail ? "Ocultar" : "Mostrar"} detalle
+                  </button>
+                  {showDetail && (
+                    <select
+                      className=" cursor-pointer hover:bg-slate-200 bg-light-blue  duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
+                      onChange={(e) => setAmountOfMonths(e.target.value)}
+                    >
+                      <option value={3}>3 meses</option>
+                      <option selected value={6}>
+                        6 meses
+                      </option>
+                      <option value={12}>12 meses</option>
+                    </select>
+                  )}
+                </div>
+                <div>
+                  <span className="text-dark-gray">Buscar</span>
+                  <input
+                    id="detail-search"
+                    type="search"
+                    className="ml-3 form-input w-[500px] h-10"
+                    placeholder="Codigo, descripción, modelo (ej, x1, x2, xn)"
+                    value={detailSearch}
+                    onChange={(e) =>
+                      setDetailSearch(e.target.value.toLocaleUpperCase())
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="form-section overflow-x-auto w-full">
+              {/* <label htmlFor="" className="form-label">
               Nivel de servicio (Z)
             </label>
             <input type="text" className="form-input " /> */}
-            <label htmlFor="" className="form-label">
-              Ventas (últimos 12 meses)
-            </label>
-            {/* <CustomDatatable
+              <label htmlFor="" className="form-label">
+                Ventas (últimos 12 meses)
+              </label>
+              {/* <CustomDatatable
               columns={columns}
               // data={stockSummary}
               data={mode != "CREATE" ? detailData : stockSummary}
@@ -1689,172 +1803,187 @@ const MrpForm = ({
               isLoading={isLoading}
             /> */}
 
-            {isLoading && (
-              <div className="w-full h-96 flex justify-center items-center">
-                <DNA wrapperStyle={{ opacity: 0.6 }} height="80" width="80" />
-              </div>
-            )}
-            {!isLoading &&
-            (stockSummary.length > 0 || detailData.length > 0) ? (
-              <AutoSizer disableHeight>
-                {({ width }) => [
-                  // <span>
-                  //   {dtWidth} vs {window.screen.width * 0.9}
-                  // </span>,
-                  <Table
-                    width={Math.max(dtWidth, window.screen.width * 0.9)}
-                    height={400}
-                    rowHeight={45}
-                    rowCount={
-                      mode != "CREATE"
-                        ? filterData().length
-                        : filterData().length
-                    }
-                    rowGetter={({ index }) =>
-                      mode != "CREATE"
-                        ? filterData()[index]
-                        : filterData()[index]
-                    }
-                    headerClassName="bg-black text-white"
-                  >
-                    {/* isCreate
-          ? hadlePriceSuggestion(row).suggestedAmount
-          : Number(row.detail_suggested_amount) */}
-                    {columns.map((c) => (
-                      <Column
-                        key={c.key}
-                        width={c.width}
-                        label={c.label}
-                        dataKey={c.dataKey}
-                        headerRenderer={({ dataKey, label }) =>
-                          headerRenderer(dataKey, label)
-                        }
-                        {...(c.cellRenderer
-                          ? {
-                              cellRenderer: ({
-                                rowData: row,
-                                dataKey,
-                                rowIndex,
-                              }) => c.cellRenderer(row, dataKey, rowIndex),
-                            }
-                          : {})}
-                      />
-                    ))}
-                  </Table>,
-                ]}
-              </AutoSizer>
-            ) : undefined}
-
-            {!isLoading &&
-              stockSummary.length == 0 &&
-              detailData.length == 0 && (
+              {isLoading && (
                 <div className="w-full h-96 flex justify-center items-center">
-                  <p>No se encontraron resultados</p>
+                  <DNA wrapperStyle={{ opacity: 0.6 }} height="80" width="80" />
                 </div>
               )}
-          </div>
-          <div className="form-section flex justify-between mt-4 flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              Cantidad de referencias{" "}
-              <p className="bg-slate-300 p-2 rounded-full px-4 text-center">
-                <b>
-                  {mode != "CREATE"
-                    ? currencyFormat(filterData().length, false, 0)
-                    : currencyFormat(filterData().length, false, 0)}
-                </b>
-              </p>
+              {!isLoading &&
+              (stockSummary.length > 0 || detailData.length > 0) ? (
+                <AutoSizer disableHeight>
+                  {({ width }) => [
+                    // <span>
+                    //   {dtWidth} vs {window.screen.width * 0.9}
+                    // </span>,
+                    <Table
+                      width={Math.max(dtWidth, window.screen.width * 0.9)}
+                      height={400}
+                      rowHeight={45}
+                      rowCount={
+                        mode != "CREATE"
+                          ? filterData().length
+                          : filterData().length
+                      }
+                      rowGetter={({ index }) =>
+                        mode != "CREATE"
+                          ? filterData()[index]
+                          : filterData()[index]
+                      }
+                      headerClassName="bg-black text-white"
+                    >
+                      {/* isCreate
+          ? hadlePriceSuggestion(row).suggestedAmount
+          : Number(row.detail_suggested_amount) */}
+                      {columns.map((c) => (
+                        <Column
+                          key={c.key}
+                          width={c.width}
+                          label={c.label}
+                          dataKey={c.dataKey}
+                          headerRenderer={({ dataKey, label }) =>
+                            headerRenderer(dataKey, label)
+                          }
+                          {...(c.cellRenderer
+                            ? {
+                                cellRenderer: ({
+                                  rowData: row,
+                                  dataKey,
+                                  rowIndex,
+                                }) => c.cellRenderer(row, dataKey, rowIndex),
+                              }
+                            : {})}
+                        />
+                      ))}
+                    </Table>,
+                  ]}
+                </AutoSizer>
+              ) : undefined}
+
+              {!isLoading &&
+                stockSummary.length == 0 &&
+                detailData.length == 0 && (
+                  <div className="w-full h-96 flex justify-center items-center">
+                    <p>No se encontraron resultados</p>
+                  </div>
+                )}
             </div>
-            <div>
-              <ul className="flex gap-2">
-                <li className="bg-slate-300 p-2 rounded-full text-center">
-                  <span>A pedir </span>
-                  <b className="dark-gray text-sm ">
-                    {isCreate
-                      ? currencyFormat(
-                          stockSummary.reduce(
-                            (acc, item) => acc + parseInt(item.order_amount),
-                            0
-                          ),
-                          false,
-                          0
-                        )
-                      : currencyFormat(
-                          detailData.reduce(
-                            (acc, item) => acc + parseInt(item.order_amount),
-                            0
-                          ),
-                          false,
-                          0
-                        )}
-                  </b>
-                  <span> artículos</span>
-                </li>
-                <li className="bg-slate-300 p-2 rounded-full text-center">
-                  <span>Total pedido</span>
-                  <b className="dark-gray text-sm">
-                    {" "}
-                    {currencySymbol}
-                    {isCreate
-                      ? currencyFormat(totalCreationMrp, false)
-                      : currencyFormat(totalEditionMrp, false)}
-                  </b>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </div>
-        <div className="pt-6 pb-3 flex justify-between gap-4">
-          <Button
-            title={
-              <p className="font-roboto tracking-wide font-medium">Cancelar</p>
-            }
-            width={240}
-            height={55}
-            onClick={onClose}
-          />
-          <div className="flex items-center gap-8">
-            {!isCreate && (
+            <div className="form-section flex justify-between mt-4 flex-wrap gap-2">
               <div className="flex items-center gap-2">
-                <input
-                  checked={keepUpdateOpened}
-                  onChange={() => setKeepUpdateOpened((prev) => !prev)}
-                  type="checkbox"
-                  className="w-4 h-4"
-                />
-                <p className="text-dark-gray font-medium -mb-1">
-                  {" "}
-                  Mantener abierto
+                Cantidad de referencias{" "}
+                <p className="bg-slate-300 p-2 rounded-full px-4 text-center">
+                  <b>
+                    {mode != "CREATE"
+                      ? currencyFormat(filterData().length, false, 0)
+                      : currencyFormat(filterData().length, false, 0)}
+                  </b>
                 </p>
               </div>
-            )}
+              <div>
+                <ul className="flex gap-2">
+                  <li className="bg-slate-300 p-2 rounded-full text-center">
+                    <span>A pedir </span>
+                    <b className="dark-gray text-sm ">
+                      {isCreate
+                        ? currencyFormat(
+                            stockSummary.reduce(
+                              (acc, item) => acc + parseInt(item.order_amount),
+                              0
+                            ),
+                            false,
+                            0
+                          )
+                        : currencyFormat(
+                            detailData.reduce(
+                              (acc, item) => acc + parseInt(item.order_amount),
+                              0
+                            ),
+                            false,
+                            0
+                          )}
+                    </b>
+                    <span> artículos</span>
+                  </li>
+                  <li className="bg-slate-300 p-2 rounded-full text-center">
+                    <span>Total pedido</span>
+                    <b className="dark-gray text-sm">
+                      {" "}
+                      {currencySymbol}
+                      {isCreate
+                        ? currencyFormat(totalCreationMrp, false)
+                        : currencyFormat(totalEditionMrp, false)}
+                    </b>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div className="pt-6 pb-3 flex justify-between gap-4">
             <Button
               title={
-                <p className="font-roboto tracking-wide font-medium flex items-center relative">
-                  {isCreate ? "Guardar" : "Actualizar"}{" "}
-                  {isFormLoading && (
-                    <Oval
-                      wrapperClass="opacity-80 absolute -right-[80px]"
-                      color="white"
-                      width={20}
-                      height={20}
-                      strokeWidth={4}
-                      secondaryColor="lightgray"
-                    />
-                  )}
+                <p className="font-roboto tracking-wide font-medium">
+                  Cancelar
                 </p>
               }
-              variant="dark"
-              width={270}
+              width={240}
               height={55}
-              onClick={() => {
-                setDetailSearch("");
-                form.handleSubmit();
-              }}
+              onClick={onClose}
             />
+            <div className="flex items-center gap-8">
+              {!isCreate && (
+                <div className="flex items-center gap-2">
+                  <input
+                    checked={keepUpdateOpened}
+                    onChange={() => setKeepUpdateOpened((prev) => !prev)}
+                    type="checkbox"
+                    className="w-4 h-4"
+                  />
+                  <p className="text-dark-gray font-medium -mb-1">
+                    {" "}
+                    Mantener abierto
+                  </p>
+                </div>
+              )}
+              <Button
+                title={
+                  <p className="font-roboto tracking-wide font-medium flex items-center relative">
+                    {isCreate ? "Guardar" : "Actualizar"}{" "}
+                    {isFormLoading && (
+                      <Oval
+                        wrapperClass="opacity-80 absolute -right-[80px]"
+                        color="white"
+                        width={20}
+                        height={20}
+                        strokeWidth={4}
+                        secondaryColor="lightgray"
+                      />
+                    )}
+                  </p>
+                }
+                variant="dark"
+                width={270}
+                height={55}
+                onClick={() => {
+                  setDetailSearch("");
+                  form.handleSubmit();
+                }}
+              />
+            </div>
           </div>
         </div>
-      </div>
-    </Modal>
+      </Modal>
+      {isConfirmationOpened && (
+        <ConfirmationModal
+          desc="Estás a punto de actualizar las cantidades y precios en el MRP"
+          condition="Establecer cantidades en 0 para las referencias no encontradas"
+          onClose={() => {
+            setIsConfirmationOpened(false);
+          }}
+          onSend={() => uploadPriceFile()}
+          checked={refsToZero}
+          onToggleCondition={() => setRefsToZero((prev) => !prev)}
+        />
+      )}
+    </>
   );
 };
 
