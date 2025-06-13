@@ -12,7 +12,7 @@ const SearchSelect = ({
 }) => {
   const [search, setSearch] = useState(defaultValue || "");
   const [filteredOptions, setFilteredOptions] = useState([...options]);
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [seeAll, setSeeAll] = useState(true);
   const dropdownRef = useRef(null);
@@ -87,8 +87,19 @@ const SearchSelect = ({
         }
       });
       setFilteredOptions(newOptions);
-      setSelected(newOptions.filter((item) => item.selected));
+      //setSelected(newOptions.filter((item) => item.selected));
     }
+  };
+
+  const handleSelectAll = () => {
+    let newOptions = [...filteredOptions];
+    newOptions.map((item) => {
+      item.selected = true;
+    });
+
+    setFilteredOptions(newOptions);
+    //setSelected((prev) => [newOptions.filter((item) => item.selected)]);
+    //setSearch("");
   };
 
   useEffect(() => {
@@ -106,6 +117,12 @@ const SearchSelect = ({
     setSeeAll((prev) => !prev);
   };
 
+  useEffect(() => {
+    setSelected([...options].filter((item) => item.selected == true));
+  }, [filteredOptions]);
+
+  //multiple && console.log(options);
+
   return (
     <div className="relative w-full" ref={dropdownRef}>
       <input
@@ -118,42 +135,53 @@ const SearchSelect = ({
         className={variants[variant].inputClasses}
         autoComplete="off"
       />
+
       {multiple && (
-        <span
-          className="text-blue-400 ml-2 cursor-pointer text-sm absolute top-[22px] right-12"
-          onClick={toggleShowSelectedAll}
-        >
-          Ver {seeAll ? "seleccionados" : "Todos"}
-        </span>
+        <div className="absolute top-[20px] right-10">
+          <span
+            className="text-blue-400 ml-2 cursor-pointer text-sm "
+            onClick={handleSelectAll}
+          >
+            Seleccionar filtrados
+          </span>{" "}
+          <span
+            className="text-blue-400 ml-2 cursor-pointer text-sm"
+            onClick={toggleShowSelectedAll}
+          >
+            Ver {seeAll ? "seleccionados" : "Todos"}
+          </span>
+        </div>
       )}
       {isOpen && (
         <ul className={variants[variant].dropdownClasses}>
-          {multiple && (
+          {/* {multiple && (
             <li className="p-2 hover:bg-gray-200 cursor-pointer text-sm">
               Todos
             </li>
-          )}
+          )} */}
           {filteredOptions.length > 0 ? (
-            filteredOptions.map((option) => (
-              <li
-                key={option[fields.key]}
-                onClick={() => handleSelect(option)}
-                className="p-2 hover:bg-gray-200 cursor-pointer text-sm"
-              >
-                <div className="flex items-center justify-start gap-2">
-                  {multiple && (
-                    <input
-                      type="checkbox"
-                      checked={option.selected}
-                      className="size-4 rounded-sm border-none pointer-events-none"
-                      readOnly
-                    />
-                  )}
-                  {fields.keyOnLabel ? option[fields.key] + " - " : ""}
-                  {option[fields.value]}
-                </div>
-              </li>
-            ))
+            filteredOptions
+              .filter((opt) => opt[fields.value] != "")
+              .map((option) => (
+                <li
+                  key={option[fields.key]}
+                  onClick={() => handleSelect(option)}
+                  className="p-2 hover:bg-gray-200 cursor-pointer text-sm"
+                >
+                  <div className="flex items-center justify-start gap-2">
+                    {multiple && (
+                      <input
+                        type="checkbox"
+                        checked={option.selected}
+                        className="size-4 rounded-sm border-none pointer-events-none"
+                        readOnly
+                      />
+                    )}
+                    {fields.keyOnLabel ? option[fields.key] + " - " : ""}
+                    {option[fields.value]}
+                  </div>
+                </li>
+              ))
           ) : (
             <li className="p-2 text-gray-500">No results found</li>
           )}

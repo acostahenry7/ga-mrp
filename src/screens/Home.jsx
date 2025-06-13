@@ -1134,7 +1134,7 @@ const MrpForm = ({
   const totalCreationMrp = stockSummary.reduce((acc, item) => {
     let price = item.price || item.last_purchase_price;
     let amount =
-      item.order_amount || hadlePriceSuggestion(item).suggestedAmount;
+      item.order_amount ?? hadlePriceSuggestion(item).suggestedAmount;
 
     return acc + parseFloat(price) * parseFloat(amount);
   }, 0);
@@ -1313,7 +1313,7 @@ const MrpForm = ({
               row={row}
               type={"amount"}
               initialValue={
-                row?.order_amount || hadlePriceSuggestion(row).suggestedAmount
+                row?.order_amount ?? hadlePriceSuggestion(row).suggestedAmount
               }
             />
           </div>
@@ -1350,7 +1350,7 @@ const MrpForm = ({
       cellRenderer: (row, dataKey) => {
         let price = row.price || row.last_purchase_price;
         let amount =
-          row.order_amount || hadlePriceSuggestion(row).suggestedAmount;
+          row.order_amount ?? hadlePriceSuggestion(row).suggestedAmount;
 
         return currencyFormat(parseFloat(price) * parseFloat(amount), false);
       },
@@ -1408,7 +1408,7 @@ const MrpForm = ({
 
   const uploadPriceFile = () => {
     //uploconst test = XLSX.readFile(priceFile);
-    console.log(priceFile);
+    console.log("MAKE ALL 0 ", refsToZero);
     let arr;
 
     setIsLoading(true);
@@ -1419,6 +1419,7 @@ const MrpForm = ({
       .then((res) => {
         if (mode == "CREATE") {
           arr = [...stockSummary];
+          console.log("STOCKSUMMARY", arr[0]);
 
           if (refsToZero) {
             arr.forEach((item) => {
@@ -1433,7 +1434,7 @@ const MrpForm = ({
               (el) => el.factory_item_code == item.item_code
             );
 
-            console.log(index);
+            // console.log(index);
 
             if (index >= 0) {
               arr[index].order_amount = item.amount;
@@ -1477,7 +1478,6 @@ const MrpForm = ({
           });
           if (wasUpdated) {
             setDetailData(arr);
-            console.log(found);
 
             setToUpdate(found);
           }
@@ -1493,8 +1493,6 @@ const MrpForm = ({
 
     console.log(priceFile);
   };
-
-  console.log(toUpdate);
 
   return (
     <>
