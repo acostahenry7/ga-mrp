@@ -329,6 +329,7 @@ const Home = () => {
             label: "Imprimir",
             icon: <FiPrinter color="rgb(64 112 133)" />,
             action: () => {
+              console.log(row);
               let date = getCurrentDate();
               generateReport({ fileName: `sugerido-${date}`, ...session }, row);
             },
@@ -521,6 +522,7 @@ const MrpForm = ({
       suggestedAmount,
     };
   };
+  console.log(providers);
 
   const form = useFormik({
     initialValues: getInitialValues(),
@@ -661,6 +663,8 @@ const MrpForm = ({
             onClose();
           });
       } else {
+        console.log(providerName);
+
         const updateMrp = {
           description: values.description,
           priceTotal: Math.round(
@@ -672,6 +676,7 @@ const MrpForm = ({
           currency: values.currency,
           lastModifiedBy: session?.userData?.UserName,
           providerCode: values.providerCode,
+          providerName,
           resetRefs: refsToZero,
           detail: toUpdate
             .filter((item) => !item.isNewItem)
