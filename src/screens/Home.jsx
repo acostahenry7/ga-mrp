@@ -312,13 +312,37 @@ const Home = () => {
                   Tránsito: item.U_inv_transit,
                   "Inv + Trans": item.sum_inv_trans,
                   ...getDetail(item),
-                  "Promedio de ventas": parseFloat(item.U_avg_demand),
-                  "Punto de reorden": parseFloat(item.U_reorder_point),
+                  "Promedio de ventas": currencyFormat(
+                    parseFloat(item.U_avg_demand),
+                    false,
+                    1
+                  ),
+                  "Meses de Inventario": currencyFormat(
+                    Math.round(
+                      parseFloat(item.sum_inv_trans) /
+                        parseFloat(item.U_avg_demand)
+                    ),
+                    false,
+                    0
+                  ),
+                  "Punto de reorden": currencyFormat(
+                    parseFloat(item.U_reorder_point),
+                    false,
+                    1
+                  ),
                   "Cantidad sugerida": item.U_detail_suggested_amount,
                   "Cantidad a pedir": item.U_order_amount,
-                  "Ult. Precio compra": parseFloat(item.last_purchase_price),
+                  "Ult. Precio compra": currencyFormat(
+                    parseFloat(item.last_purchase_price),
+                    false,
+                    2
+                  ),
                   Precio: parseFloat(item.price),
-                  Total: parseFloat(item.U_line_total),
+                  Total: currencyFormat(
+                    parseFloat(item.U_line_total),
+                    false,
+                    2
+                  ),
                 }));
 
               exportToExcel(dataSet1, `Sugerido-${row.Name}`);

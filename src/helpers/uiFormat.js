@@ -71,6 +71,7 @@ export function currencyFormat(input, showCurrencySign, fractionDigits) {
     style: "currency",
     currency: "DOP",
     minimumFractionDigits: fractionDigits ?? 2,
+    maximumFractionDigits: fractionDigits ?? 2,
   };
 
   if (showCurrencySign == false) {
