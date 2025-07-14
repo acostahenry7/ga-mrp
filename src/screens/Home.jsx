@@ -1446,6 +1446,8 @@ const MrpForm = ({
       filename: priceFile.name,
     })
       .then((res) => {
+        console.log("###################", res, mode);
+
         if (mode == "CREATE") {
           arr = [...stockSummary];
           console.log("STOCKSUMMARY", arr[0]);
@@ -1476,7 +1478,7 @@ const MrpForm = ({
 
           setStockSummary(arr);
         } else {
-          console.log(detailData);
+          console.log("EDIT MODE #########", detailData);
           arr = [...detailData];
           let found = [];
 
@@ -1762,20 +1764,25 @@ const MrpForm = ({
                   >
                     <BiSync size={20} /> Cargar nuevas referencias
                   </button>
-                  <div className="flex items-center">
-                    {/* <BiFile size={20} />{" "} */}
-                    <input
-                      type="file"
-                      onChange={(e) => setPriceFile(e.target.files[0])}
-                      className="self-center"
-                    />
-                  </div>
-                  <button
-                    className="flex items-center hover:bg-slate-200 bg-light-blue  duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
-                    onClick={() => setIsConfirmationOpened(true)}
-                  >
-                    Subir archivo
-                  </button>
+                  {
+                    //solo en edit, modificar
+                    <>
+                      <div className="flex items-center">
+                        {/* <BiFile size={20} />{" "} */}
+                        <input
+                          type="file"
+                          onChange={(e) => setPriceFile(e.target.files[0])}
+                          className="self-center"
+                        />
+                      </div>
+                      <button
+                        className="flex items-center hover:bg-slate-200 bg-light-blue  duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
+                        onClick={() => setIsConfirmationOpened(true)}
+                      >
+                        Subir archivo
+                      </button>
+                    </>
+                  }
                   <button
                     className={` hover:bg-slate-200 bg-light-blue duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300 ${
                       showDetail ? "bg-slate-200" : ""
