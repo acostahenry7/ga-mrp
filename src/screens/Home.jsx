@@ -310,21 +310,24 @@ const Home = () => {
                   Modelo: item.U_model,
                   Inventario: item.U_inv_stock,
                   Tránsito: item.U_inv_transit,
-                  "Inv + Trans": item.sum_inv_trans,
                   ...getDetail(item),
+                  "Inv + Trans": item.sum_inv_trans,
                   "Promedio de ventas": currencyFormat(
                     parseFloat(item.U_avg_demand),
                     false,
                     1
                   ),
-                  "Meses de Inventario": currencyFormat(
-                    Math.round(
-                      parseFloat(item.sum_inv_trans) /
-                        parseFloat(item.U_avg_demand)
-                    ),
-                    false,
-                    0
-                  ),
+                  "Meses de Inventario":
+                    parseFloat(item.U_avg_demand) > 0
+                      ? currencyFormat(
+                          Math.round(
+                            parseFloat(item.sum_inv_trans) /
+                              parseFloat(item.U_avg_demand)
+                          ) || 0,
+                          false,
+                          0
+                        )
+                      : 0,
                   "Punto de reorden": currencyFormat(
                     parseFloat(item.U_reorder_point),
                     false,
@@ -819,6 +822,8 @@ const MrpForm = ({
         newData.push(obj);
       }
 
+      console.log("loging data ", data);
+
       setDetailData(newData);
       setIsLoading(false);
     } else {
@@ -975,6 +980,8 @@ const MrpForm = ({
           setFetchNewRefs(false);
         }
       }
+      console.log("MESEEEEES", sm.months);
+
       setMonths(sm.months);
     } catch (error) {
       console.log(error);
@@ -1131,7 +1138,14 @@ const MrpForm = ({
   const getSalesPerMonthCols = () => {
     const arr = [];
 
-    months.forEach((month, index) => {
+    console.log(months);
+
+    let tmpArr = [...months];
+    if (mode == "EDIT") {
+      tmpArr = Array(12).fill(0);
+    }
+
+    tmpArr.forEach((month, index) => {
       let suffix = `0${index + 1}`;
       if (index + 1 > 9) {
         suffix = `${index + 1}`;
@@ -1156,6 +1170,8 @@ const MrpForm = ({
           ),
       });
     });
+
+    console.log("arr", arr);
 
     return showDetail ? arr.slice(12 - amountOfMonths, 12) : [];
   };
@@ -1766,22 +1782,24 @@ const MrpForm = ({
                   </button>
                   {
                     //solo en edit, modificar
-                    <>
-                      <div className="flex items-center">
-                        {/* <BiFile size={20} />{" "} */}
-                        <input
-                          type="file"
-                          onChange={(e) => setPriceFile(e.target.files[0])}
-                          className="self-center"
-                        />
-                      </div>
-                      <button
-                        className="flex items-center hover:bg-slate-200 bg-light-blue  duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
-                        onClick={() => setIsConfirmationOpened(true)}
-                      >
-                        Subir archivo
-                      </button>
-                    </>
+                    mode == "EDIT" && (
+                      <>
+                        <div className="flex items-center">
+                          {/* <BiFile size={20} />{" "} */}
+                          <input
+                            type="file"
+                            onChange={(e) => setPriceFile(e.target.files[0])}
+                            className="self-center"
+                          />
+                        </div>
+                        <button
+                          className="flex items-center hover:bg-slate-200 bg-light-blue  duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300"
+                          onClick={() => setIsConfirmationOpened(true)}
+                        >
+                          Subir archivo
+                        </button>
+                      </>
+                    )
                   }
                   <button
                     className={` hover:bg-slate-200 bg-light-blue duration-200 px-3 text-dark font-medium rounded-full active:bg-slate-300 ${
