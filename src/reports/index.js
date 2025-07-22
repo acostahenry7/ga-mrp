@@ -16,28 +16,42 @@ import {
   defaultY,
   createLine,
   getStringWidth,
+  createImg,
 } from "./helpers";
+import { getMrpDetailApi } from "../api/mrp";
+import logo from "./images/logo";
 
 export async function generateReport(params, data) {
   const fileName = params?.fileName || "generic.pdf";
   const doc = initializeReport();
 
-  console.log(data.detail.filter((item) => item.U_order_amount > 0).length);
+  const detailData = await getMrpDetailApi({ mrpId: data.U_mrp_id });
 
   const printData = {
     ...data,
     detail: orderBy(
-      data.detail
+      detailData
         .map((item) => ({
           ...item,
           U_avg_demand: Math.round(parseFloat(item.U_avg_demand)),
           U_reorder_point: Math.round(parseFloat(item.U_reorder_point)),
+          U_inv_month:
+            parseFloat(item.U_avg_demand) > 0
+              ? currencyFormat(
+                  Math.round(
+                    parseFloat(item.sum_inv_trans) /
+                      parseFloat(item.U_avg_demand)
+                  ) || 0,
+                  false,
+                  0
+                )
+              : 0,
           invTransit:
             parseFloat(item.U_inv_stock) + parseFloat(item.U_inv_transit),
         }))
         .filter((item) => item.U_order_amount > 0),
-      "U_detail_suggested_amount",
-      "desc"
+      "U_description",
+      "asc"
     ),
   };
 
@@ -56,15 +70,19 @@ function generateReportHeader(params, data) {
     fill: false,
   });
 
+  createImg(logo, "png", 7, 7, 10, 10);
+
   createText({
     type: "title",
     text: `${getCompanyNameBySchema(
       params.userData.companyDB
     )} - PEDIDO SUGERIDO - ${formatDateSpanish(data.U_created_date)}`,
+    x: 20,
+    y: 9,
   });
 
   hr();
-  createText({ type: "subtitle", text: `${data.U_description}` });
+  createText({ type: "subtitle", text: `${data.U_description}`, x: 20, y: 13 });
   hr();
   //   createText({
   //     type: "subtitle",
@@ -125,8 +143,11 @@ function generateSummarySection(data) {
     let fractionDigits = 0;
     if (data[f.field])
       createText({ type: "subtitle", text: `${f.label}`, x: left, y: top });
+    if (f.label === "Costo pedido") {
+      fractionDigits = 2;
+    }
     createText({
-      text: `${currencyFormat(data[f.field], false)}${
+      text: `${currencyFormat(data[f.field], false, fractionDigits)}${
         f.label == "Leadtime" ? " meses" : ""
       }`,
       x: left + 75,
@@ -197,7 +218,7 @@ function generateBody(data, left, top, doc) {
     {
       label: "Modelo",
       field: "U_model",
-      width: 50,
+      width: 50 - 15,
       type: "text",
     },
     {
@@ -212,16 +233,23 @@ function generateBody(data, left, top, doc) {
       width: columnDefaultWidth + 2,
       type: "amount",
     },
+
+    ...getSalesFields(),
     {
-      label: "Inv + Trans",
+      label: "Inv +\nTrans",
       field: "invTransit",
-      width: columnDefaultWidth - 5,
+      width: columnDefaultWidth,
       type: "amount",
     },
-    ...getSalesFields(),
     {
       label: "Promedio\nde ventas",
       field: "U_avg_demand",
+      width: columnDefaultWidth,
+      type: "amount",
+    },
+    {
+      label: "Meses de\n inventario",
+      field: "U_inv_month",
       width: columnDefaultWidth,
       type: "amount",
     },
@@ -262,16 +290,11 @@ function generateBody(data, left, top, doc) {
       type: "number",
     },
   ];
-
-  console.log(fields);
+  console.log(data.detail.length / 38);
 
   const addPageNum = (num) => {
     createText({
-      text: `${num} de ${
-        Math.floor(
-          data.detail.filter((item) => item.U_order_amount > 0).length / 38
-        ) + 1
-      }`,
+      text: `${num} de ${Math.round(data.detail.length / 38) + 1}`,
       x: 344,
       y: 210,
       props: { align: "right" },
@@ -284,7 +307,7 @@ function generateBody(data, left, top, doc) {
       type: "subtitle",
       text: "Ventas (últimos 12 meses)",
       y: top - 5,
-      x: 190,
+      x: 170,
     });
     fields.map((field, index) => {
       createText({
@@ -318,7 +341,7 @@ function generateBody(data, left, top, doc) {
 
       if (
         textValue &&
-        field.label == "Descripción" &&
+        (field.label == "Descripción" || field.label == "Modelo") &&
         getStringWidth(textValue.toString()) > (field.width * 72) / 100
       ) {
         let preValue = textValue || "";

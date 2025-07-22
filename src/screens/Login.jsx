@@ -45,8 +45,6 @@ const Login = () => {
           if (response.error == true) {
             throw response;
           } else {
-            console.log("hi");
-
             signin(response.body);
           }
         })

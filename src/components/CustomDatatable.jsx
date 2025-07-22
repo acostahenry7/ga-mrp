@@ -98,7 +98,7 @@ const CustomDatatable = ({ data, columns, isLoading, shadow }) => {
       // }}
       //selectableRows
       // onChangePage={() => {
-      //   console.log("hi");
+
       // }}
     />
   );

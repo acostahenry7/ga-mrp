@@ -9,6 +9,7 @@ import {
   getCurrenciesApi,
   getModelsApi,
   getMrpApi,
+  getMrpDetailApi,
   getNextMrpApi,
   getProvidersApi,
   getStockSummaryApi,
@@ -42,6 +43,7 @@ import { createPurchaseOrderDraftApi } from "../api/PurchaseOderDraft";
 import useDisableScroll from "../hooks/useDisableScroll";
 import { dt } from "../helpers/ui";
 import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { BsArrowRight } from "react-icons/bs";
 import ConfirmationModal from "../components/ConfirmationModal";
@@ -153,20 +155,80 @@ const Home = () => {
       });
   };
 
-  const exportToExcel = (data, fileName = "export") => {
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+  // const exportToExcel = (data, fileName = "export") => {
+  //   const worksheet = XLSX.utils.json_to_sheet(data);
+  //   const workbook = XLSX.utils.book_new();
+  //   XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
 
-    const excelBuffer = XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "array",
-    });
-    const dataBlob = new Blob([excelBuffer], {
-      type: "application/octet-stream",
+  //   const excelBuffer = XLSX.write(workbook, {
+  //     bookType: "xlsx",
+  //     type: "array",
+  //   });
+  //   const dataBlob = new Blob([excelBuffer], {
+  //     type: "application/octet-stream",
+  //   });
+
+  //   saveAs(dataBlob, `${fileName}.xlsx`);
+  // };
+
+  const exportToExcel = async (data, fileName = "export") => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Sugerido");
+
+    if (!data || data.length === 0) return;
+
+    // Agrega encabezados
+    const headers = Object.keys(data[0]);
+    worksheet.addRow(headers);
+
+    // Aplica estilo a encabezados
+    // const headerRow = worksheet.getRow(1);
+    // headerRow.font = { bold: true };
+    // headerRow.fill = {
+    //   type: "pattern",
+    //   pattern: "solid",
+    //   fgColor: { argb: "FFCCE5FF" }, // Light blue
+    // };
+
+    // Ajusta ancho automático
+    headers.forEach((_, index) => {
+      worksheet.getColumn(index + 1).width = 20;
     });
 
-    saveAs(dataBlob, `${fileName}.xlsx`);
+    // Agrega los datos
+    data.forEach((row) => {
+      const rowData = headers.map((key) => row[key]);
+      worksheet.addRow(rowData);
+    });
+
+    // Aplicando estilos desde T a Y
+    const startCol = 20; // Columna T (la 20)
+    const endCol = 25; // Columna Y (la 25)
+    const totalRows = worksheet.rowCount;
+
+    for (let i = 2; i <= totalRows; i++) {
+      const row = worksheet.getRow(i);
+
+      for (let col = startCol; col <= endCol; col++) {
+        const cell = row.getCell(col);
+
+        if (cell)
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFCCE5FF" }, // Amarillo claro (puedes cambiarlo)
+          };
+      }
+    }
+
+    // Genera el archivo
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    // Descarga en navegador
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    saveAs(blob, `${fileName}.xlsx`);
   };
 
   // XLSX.utils.sheet_to_json()
@@ -175,22 +237,28 @@ const Home = () => {
     {
       name: "Código",
       selector: (i) => i.U_mrp_code,
+      cell: (i) => <b>{i.U_mrp_code}</b>,
+      sortable: true,
     },
     {
       name: "Descripción",
       selector: (i) => i.U_description,
+      sortable: true,
     },
     {
       name: "Marca",
       selector: (i) => i.brand_description,
+      sortable: true,
     },
     {
       name: "Leadtime",
       selector: (i) => `${i.U_leadtime} meses`,
+      sortable: true,
     },
     {
       name: "A pedir",
       selector: (i) => currencyFormat(i.U_suggested_amount, false, 0),
+      sortable: true,
     },
     {
       name: "Costo pedido",
@@ -279,9 +347,7 @@ const Home = () => {
             id: 2,
             label: "Exportar a excel",
             icon: <FaFileExport color="#13b351" />,
-            action: () => {
-              console.log(row);
-
+            action: async () => {
               const getDetail = (item) => {
                 let targetFields = {};
 
@@ -300,53 +366,60 @@ const Home = () => {
                 return targetFields;
               };
 
-              let dataSet1 = row.detail
-                ?.filter((item) => item.U_order_amount > 0)
-                .map((item) => ({
-                  "No. artículo": item.U_item_code,
-                  "Codigo Fabrica": item.U_factory_item_code,
-                  Descripción: item.U_detail_description,
-                  "Descrición Extrajera": item.U_factory_detail_description,
-                  Modelo: item.U_model,
-                  Inventario: item.U_inv_stock,
-                  Tránsito: item.U_inv_transit,
-                  ...getDetail(item),
-                  "Inv + Trans": item.sum_inv_trans,
-                  "Promedio de ventas": currencyFormat(
-                    parseFloat(item.U_avg_demand),
-                    false,
-                    1
-                  ),
-                  "Meses de Inventario":
-                    parseFloat(item.U_avg_demand) > 0
-                      ? currencyFormat(
-                          Math.round(
-                            parseFloat(item.sum_inv_trans) /
-                              parseFloat(item.U_avg_demand)
-                          ) || 0,
-                          false,
-                          0
-                        )
-                      : 0,
-                  "Punto de reorden": currencyFormat(
-                    parseFloat(item.U_reorder_point),
-                    false,
-                    1
-                  ),
-                  "Cantidad sugerida": item.U_detail_suggested_amount,
-                  "Cantidad a pedir": item.U_order_amount,
-                  "Ult. Precio compra": currencyFormat(
-                    parseFloat(item.last_purchase_price),
-                    false,
-                    2
-                  ),
-                  Precio: parseFloat(item.price),
-                  Total: currencyFormat(
-                    parseFloat(item.U_line_total),
-                    false,
-                    2
-                  ),
-                }));
+              const detailData = await getMrpDetailApi({
+                mrpId: row.U_mrp_id,
+              });
+              let dataSet1 = orderBy(
+                detailData
+                  ?.filter((item) => item.U_order_amount > 0)
+                  .map((item) => ({
+                    "No. artículo": item.U_item_code,
+                    "Codigo Fabrica": item.U_factory_item_code,
+                    Descripción: item.U_detail_description,
+                    "Descrición Extrajera": item.U_factory_detail_description,
+                    Modelo: item.U_model,
+                    Inventario: item.U_inv_stock,
+                    Tránsito: item.U_inv_transit,
+                    ...getDetail(item),
+                    "Inv + Trans": item.sum_inv_trans,
+                    "Promedio de ventas": currencyFormat(
+                      parseFloat(item.U_avg_demand),
+                      false,
+                      1
+                    ),
+                    "Meses de Inventario":
+                      parseFloat(item.U_avg_demand) > 0
+                        ? currencyFormat(
+                            Math.round(
+                              parseFloat(item.sum_inv_trans) /
+                                parseFloat(item.U_avg_demand)
+                            ) || 0,
+                            false,
+                            0
+                          )
+                        : 0,
+                    "Punto de reorden": currencyFormat(
+                      parseFloat(item.U_reorder_point),
+                      false,
+                      1
+                    ),
+                    "Cantidad sugerida": item.U_detail_suggested_amount,
+                    "Cantidad a pedir": item.U_order_amount,
+                    "Ult. Precio compra": currencyFormat(
+                      parseFloat(item.last_purchase_price),
+                      false,
+                      2
+                    ),
+                    Precio: parseFloat(item.price),
+                    Total: currencyFormat(
+                      parseFloat(item.U_line_total),
+                      false,
+                      2
+                    ),
+                  })),
+                "U_description",
+                "asc"
+              );
 
               exportToExcel(dataSet1, `Sugerido-${row.Name}`);
             },
@@ -356,7 +429,6 @@ const Home = () => {
             label: "Imprimir",
             icon: <FiPrinter color="rgb(64 112 133)" />,
             action: () => {
-              console.log(row);
               let date = getCurrentDate();
               generateReport({ fileName: `sugerido-${date}`, ...session }, row);
             },
@@ -490,11 +562,14 @@ const MrpForm = ({
       fields.models = data?.models;
       fields.providerCode = data?.U_provider_code;
       fields.currency = data?.U_currency;
-
-      //Year and Month
+      // //Year and Month
       const baseDate = data?.U_created_date.split(" ")[0];
+
       fields.year = baseDate.split("-")[0];
-      fields.month = baseDate.split("-")[1];
+      fields.month =
+        parseInt(baseDate.split("-")[1]) < 10
+          ? baseDate.split("-")[1][1]
+          : baseDate.split("-")[1];
     }
 
     return fields;
@@ -505,7 +580,7 @@ const MrpForm = ({
   const [models, setModels] = useState([]);
   const [stockSummary, setStockSummary] = useState([]);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [amountOfMonths, setAmountOfMonths] = useState(6);
   const [detailData, setDetailData] = useState([]);
@@ -549,7 +624,6 @@ const MrpForm = ({
       suggestedAmount,
     };
   };
-  console.log(providers);
 
   const form = useFormik({
     initialValues: getInitialValues(),
@@ -609,7 +683,6 @@ const MrpForm = ({
       )?.CardName;
 
       if (isCreate) {
-        console.log(stockSummary);
         const mrp = {
           mrpCode: values.mrpCode,
           description: values.description,
@@ -690,8 +763,6 @@ const MrpForm = ({
             onClose();
           });
       } else {
-        console.log(providerName);
-
         const updateMrp = {
           description: values.description,
           priceTotal: Math.round(
@@ -768,8 +839,6 @@ const MrpForm = ({
             }),
         };
 
-        console.log("UPDATING...", updateMrp);
-
         setIsFormLoading(true);
         updateMrpApi({ mrpId: data.U_mrp_id }, updateMrp)
           .then((res) => {
@@ -808,27 +877,38 @@ const MrpForm = ({
   }, []);
 
   useEffect(() => {
-    if (mode == "EDIT") {
-      const newData = [];
+    const loadDetailData = async () => {
+      setIsLoading(true);
+      if (mode == "EDIT") {
+        getMrpDetailApi({ mrpId: data.U_mrp_id })
+          .then((detail) => {
+            const newData = [];
 
-      for (let item of data.detail) {
-        let obj = {};
-        Object.entries(item).forEach(([key, value]) => {
-          let actualKey = key.replace("U_", "");
+            for (let item of detail) {
+              let obj = {};
+              Object.entries(item).forEach(([key, value]) => {
+                let actualKey = key.replace("U_", "");
 
-          obj[actualKey] = value;
-        });
+                obj[actualKey] = value;
+              });
 
-        newData.push(obj);
+              newData.push(obj);
+            }
+
+            setDetailData(newData);
+          })
+          .catch((err) => {
+            console.log(err);
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
+      } else {
+        handleMrpCodeChange(form.values.brandId);
       }
+    };
 
-      console.log("loging data ", data);
-
-      setDetailData(newData);
-      setIsLoading(false);
-    } else {
-      handleMrpCodeChange(form.values.brandId);
-    }
+    loadDetailData();
   }, []);
 
   const filterData = () => {
@@ -865,11 +945,8 @@ const MrpForm = ({
 
   //   loadPreviousData();
   // }, []);
-  //console.log(data);
 
   const loadPreviousData = async () => {
-    //console.log(data);
-
     try {
       setIsLoading(true);
 
@@ -901,8 +978,6 @@ const MrpForm = ({
       if (isCreate) {
         setStockSummary(arr);
       } else {
-        console.log(arr);
-
         let newArr = [];
         for (let item of sm.groupedData) {
           newArr.push({
@@ -980,7 +1055,6 @@ const MrpForm = ({
           setFetchNewRefs(false);
         }
       }
-      console.log("MESEEEEES", sm.months);
 
       setMonths(sm.months);
     } catch (error) {
@@ -1044,16 +1118,12 @@ const MrpForm = ({
     }
 
     if (!targetElementId) {
-      console.log("hi");
-
       setTimeout(() => {
         document.getElementById(type + arr[index + 1]?.item_code)?.focus();
       }, 5);
     } else {
       setTimeout(() => {
         //document.activeElement.blur();
-        console.log("hi");
-        console.log(targetElementId);
 
         document.getElementById(targetElementId)?.focus();
       }, 5);
@@ -1138,8 +1208,6 @@ const MrpForm = ({
   const getSalesPerMonthCols = () => {
     const arr = [];
 
-    console.log(months);
-
     let tmpArr = [...months];
     if (mode == "EDIT") {
       tmpArr = Array(12).fill(0);
@@ -1171,8 +1239,6 @@ const MrpForm = ({
       });
     });
 
-    console.log("arr", arr);
-
     return showDetail ? arr.slice(12 - amountOfMonths, 12) : [];
   };
 
@@ -1192,8 +1258,6 @@ const MrpForm = ({
   }, 0);
 
   const sortDtData = (key) => {
-    console.log(stockSummary);
-
     let arr = [];
     if (isCreate) {
       arr = [...stockSummary];
@@ -1453,7 +1517,7 @@ const MrpForm = ({
 
   const uploadPriceFile = () => {
     //uploconst test = XLSX.readFile(priceFile);
-    console.log("MAKE ALL 0 ", refsToZero);
+
     let arr;
 
     setIsLoading(true);
@@ -1462,11 +1526,8 @@ const MrpForm = ({
       filename: priceFile.name,
     })
       .then((res) => {
-        console.log("###################", res, mode);
-
         if (mode == "CREATE") {
           arr = [...stockSummary];
-          console.log("STOCKSUMMARY", arr[0]);
 
           if (refsToZero) {
             arr.forEach((item) => {
@@ -1481,8 +1542,6 @@ const MrpForm = ({
               (el) => el.factory_item_code == item.item_code
             );
 
-            // console.log(index);
-
             if (index >= 0) {
               arr[index].order_amount = item.amount;
               arr[index].price = item.price;
@@ -1490,11 +1549,8 @@ const MrpForm = ({
             }
           });
 
-          console.log(arr);
-
           setStockSummary(arr);
         } else {
-          console.log("EDIT MODE #########", detailData);
           arr = [...detailData];
           let found = [];
 
@@ -1605,7 +1661,6 @@ const MrpForm = ({
                       let modelStr = item
                         ?.map((item) => item.model.replace(/'/g, ""))
                         ?.join(",");
-                      console.log(data);
 
                       form.setFieldValue("models", modelStr);
                     }
@@ -1888,7 +1943,7 @@ const MrpForm = ({
           : Number(row.detail_suggested_amount) */}
                       {columns.map((c) => (
                         <Column
-                          key={c.key}
+                          key={c.dataKey}
                           width={c.width}
                           label={c.label}
                           dataKey={c.dataKey}

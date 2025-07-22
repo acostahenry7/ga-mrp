@@ -67,6 +67,15 @@ async function getMrpApi(params) {
     });
 }
 
+async function getMrpDetailApi(params) {
+  return fetch(`${process.env.REACT_APP_API}/mrp-detail${getUrlParams(params)}`)
+    .then((res) => res.json())
+    .then((data) => data)
+    .catch((err) => {
+      throw err;
+    });
+}
+
 async function removeMrpApi(params) {
   return fetch(`${process.env.REACT_APP_API}/mrp${getUrlParams(params)}`, {
     method: "DELETE",
@@ -85,8 +94,6 @@ async function getNextMrpApi(params) {
 
 async function uploadPriceFileApi(params) {
   const formData = new FormData();
-
-  console.log(params);
 
   formData.append("name", "test.xlsm");
   formData.append("file", params.file);
@@ -108,6 +115,7 @@ export {
   updateMrpApi,
   removeMrpApi,
   getMrpApi,
+  getMrpDetailApi,
   getStockSummaryApi,
   getNextMrpApi,
   getModelsApi,

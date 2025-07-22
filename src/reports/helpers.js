@@ -183,6 +183,10 @@ export function createRect(params) {
   }
 }
 
+export function createImg(img, format, x, y, w, h) {
+  doc.addImage(img, format || "png", x, y, w, h);
+}
+
 export function createLine(x, y, w) {
   if (!w) w = 50;
   doc.line(x, y, x + w, y);
