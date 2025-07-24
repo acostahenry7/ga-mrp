@@ -135,10 +135,18 @@ const Home = () => {
     retrieveMrp();
   };
 
-  const createDraftOrderhandler = (row) => {
+  const createDraftOrderhandler = async (row) => {
     setCurrentCode(row.Code);
     setIsRowLoading(true);
-    createPurchaseOrderDraftApi({ mrpId: row.U_mrp_id }, row)
+
+    const detailData = await getMrpDetailApi({
+      mrpId: row.U_mrp_id,
+    });
+
+    createPurchaseOrderDraftApi(
+      { mrpId: row.U_mrp_id },
+      { ...row, detail: detailData }
+    )
       .then((res) => {
         console.log(res);
         retrieveMrp();

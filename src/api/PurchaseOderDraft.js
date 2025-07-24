@@ -16,6 +16,7 @@ async function createPurchaseOrderDraftApi(params, data) {
         WarehouseCode: "IMPORT",
       })),
   };
+  console.log(parsedData);
 
   const sessionId = JSON.parse(sessionStorage.getItem("SESSION")).SessionId;
 
