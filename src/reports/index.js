@@ -221,6 +221,7 @@ function generateBody(data, left, top, doc) {
       width: 50 - 15,
       type: "text",
     },
+    ...getSalesFields(),
     {
       label: "Inventario",
       field: "U_inv_stock",
@@ -233,8 +234,6 @@ function generateBody(data, left, top, doc) {
       width: columnDefaultWidth + 2,
       type: "amount",
     },
-
-    ...getSalesFields(),
     {
       label: "Inv +\nTrans",
       field: "invTransit",
@@ -307,7 +306,7 @@ function generateBody(data, left, top, doc) {
       type: "subtitle",
       text: "Ventas (últimos 12 meses)",
       y: top - 5,
-      x: 170,
+      x: 140,
     });
     fields.map((field, index) => {
       createText({
@@ -355,7 +354,7 @@ function generateBody(data, left, top, doc) {
       }
 
       createText({
-        text: `${textValue}` || "",
+        text: `${textValue}`,
         x: left,
         y: top,
         props: {

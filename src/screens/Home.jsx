@@ -76,6 +76,8 @@ const Home = () => {
       });
   };
   const handleDelete = (mrpId) => {
+    console.log(mrpId);
+
     removeMrpApi({ mrpId })
       .then((res) => {
         console.log(res);
@@ -386,9 +388,9 @@ const Home = () => {
                     Descripción: item.U_detail_description,
                     "Descrición Extrajera": item.U_factory_detail_description,
                     Modelo: item.U_model,
+                    ...getDetail(item),
                     Inventario: item.U_inv_stock,
                     Tránsito: item.U_inv_transit,
-                    ...getDetail(item),
                     "Inv + Trans": item.sum_inv_trans,
                     "Promedio de ventas": currencyFormat(
                       parseFloat(item.U_avg_demand),
@@ -1240,9 +1242,13 @@ const MrpForm = ({
         dataKey: `sales_${suffix}`,
         cellRenderer: (row, dataKey) =>
           isCreate ? (
-            <div data-id="detail">{row.amounts[index]}</div>
+            <div data-id="detail">
+              {currencyFormat(row.amounts[index], false, 0)}
+            </div>
           ) : (
-            <div data-id="detail">{row[`sales_${suffix}`]}</div>
+            <div data-id="detail">
+              {currencyFormat(row[`sales_${suffix}`], false, 0)}
+            </div>
           ),
       });
     });
@@ -1374,20 +1380,24 @@ const MrpForm = ({
       label: "Inventario",
       width: dt.width.amount,
       dataKey: "inv_stock",
-      cellRenderer: (row) => parseFloat(row.inv_stock),
+      cellRenderer: (row) =>
+        currencyFormat(parseFloat(row.inv_stock), false, 0),
     },
     {
       label: "Tránsito",
       width: dt.width.amount,
       dataKey: "inv_transit",
-      cellRenderer: (row) => parseFloat(row.inv_transit),
+      cellRenderer: (row) =>
+        currencyFormat(parseFloat(row.inv_transit), false, 0),
     },
     {
       label: "INV + TRAN",
       width: dt.width.amount,
       dataKey: isCreate ? "invTrans" : "sum_inv_trans",
       cellRenderer: (row) =>
-        isCreate ? parseFloat(row.invTrans) : parseFloat(row.sum_inv_trans),
+        isCreate
+          ? currencyFormat(parseFloat(row.invTrans), false, 0)
+          : currencyFormat(parseFloat(row.sum_inv_trans), false, 0),
     },
   ];
   const secondDefaultCols = [
@@ -1397,8 +1407,33 @@ const MrpForm = ({
       dataKey: isCreate ? "avgDemand" : "avg_demand",
       cellRenderer: (row, dataKey) =>
         Math.round(row[dataKey]) == 0
-          ? parseFloat(row[dataKey])?.toFixed(2)
-          : Math.round(row[dataKey]),
+          ? currencyFormat(parseFloat(row[dataKey])?.toFixed(2), false, 0)
+          : currencyFormat(Math.round(row[dataKey]), false, 0),
+    },
+    {
+      label: "Meses Inventario",
+      width: dt.width.amount,
+      dataKey: isCreate ? "avgDemand" : "avg_demand",
+      cellRenderer: (row, dataKey) => {
+        if (row[dataKey] <= 0) {
+          return "-";
+        }
+
+        if (isCreate) {
+          //dataKey: isCreate ? "invTrans" : "sum_inv_trans",
+          return currencyFormat(
+            Math.round(row.invTrans / row[dataKey]),
+            false,
+            0
+          );
+        } else {
+          return currencyFormat(
+            Math.round(row.sum_inv_trans / row[dataKey]),
+            false,
+            0
+          );
+        }
+      },
     },
     {
       label: "Punto reorden",
@@ -1406,8 +1441,12 @@ const MrpForm = ({
       dataKey: isCreate ? "reorderPoint" : "reorder_point",
       cellRenderer: (row, dataKey) =>
         isCreate
-          ? Math.round(hadlePriceSuggestion(row).reorderPoint)
-          : parseFloat(row.reorder_point).toFixed(0),
+          ? currencyFormat(
+              Math.round(hadlePriceSuggestion(row).reorderPoint),
+              false,
+              0
+            )
+          : currencyFormat(parseFloat(row.reorder_point).toFixed(0)),
     },
     {
       label: "Sugerido",

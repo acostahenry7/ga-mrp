@@ -63,6 +63,10 @@ function getLabelNameByDateEntity(entity, value) {
 }
 
 export function currencyFormat(input, showCurrencySign, fractionDigits) {
+  if (input == 0) {
+    return "-";
+  }
+
   if (isNaN(input)) {
     return input;
   }
