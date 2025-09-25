@@ -880,11 +880,17 @@ const MrpForm = ({
 
   useEffect(() => {
     const loadFieldOptions = async () => {
-      const modelList = await getModelsApi();
+      const currentBrand = brands.find(
+        (item) => item.U_brand_id == form.values.brandId
+      );
+
+      const modelList = await getModelsApi({
+        brandCode: currentBrand?.U_brand_code,
+      });
       setModels(modelList);
     };
     loadFieldOptions();
-  }, []);
+  }, [form.values.brandId]);
 
   useEffect(() => {
     const loadDetailData = async () => {
