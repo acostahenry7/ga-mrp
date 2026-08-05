@@ -31,7 +31,7 @@ async function createPurchaseOrderDraftApi(params, data) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(parsedData),
-    }
+    },
   )
     .then((res) => res.json())
     .then((data) => {
@@ -42,6 +42,7 @@ async function createPurchaseOrderDraftApi(params, data) {
       //return data;
     })
     .catch((err) => {
+      console.log("ERROR CREATING DRAFT", err);
       throw err;
     });
 }

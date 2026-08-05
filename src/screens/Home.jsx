@@ -25,7 +25,7 @@ import Button from "../components/Button";
 import useAuth from "../hooks/useAuth";
 import { getSuggestedAmount } from "../helpers/math";
 import DtMenu from "../components/DtMenu";
-import { FiEdit, FiEye, FiPrinter, FiTrash } from "react-icons/fi";
+import { FiEdit, FiEye, FiPrinter, FiTrash, FiCopy } from "react-icons/fi";
 import { isEqual, orderBy } from "lodash";
 import {
   currencyFormat,
@@ -126,7 +126,7 @@ const Home = () => {
 
   const handleOpenForm = (mode, row) => {
     setFormMode(mode || "CREATE");
-    if (mode === "EDIT" || mode === "VIEW") {
+    if (mode === "EDIT" || mode === "VIEW" || mode === "DUPLICATE") {
       setCurrentData(row);
     }
     setIsFormOpened(true);
@@ -451,6 +451,14 @@ const Home = () => {
           },
           {
             id: 5,
+            label: "Duplicar",
+            icon: <FiCopy color="#3a6f9c" />,
+            action: () => {
+              handleOpenForm("DUPLICATE", row);
+            },
+          },
+          {
+            id: 6,
             label: "Cancelar",
             icon: <BiBlock color="red" />,
             action: () => handleDelete(row.U_mrp_id),
@@ -528,7 +536,11 @@ const MrpForm = ({
   currencies,
   mode,
 }) => {
-  let isCreate = mode == "CREATE";
+  let isCreate = mode == "CREATE" || mode == "DUPLICATE";
+  // Duplicate reuses the CREATE submit path (creates a new record), but its
+  // grid should be sourced/rendered like EDIT: real saved detail rows fetched
+  // via getMrpDetailApi, not a freshly recalculated stock summary.
+  let isEditLike = mode == "EDIT" || mode == "DUPLICATE";
 
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
@@ -565,7 +577,13 @@ const MrpForm = ({
       brandName: "",
     };
 
-    if (mode != "CREATE") {
+    if (mode == "DUPLICATE") {
+      fields.description = `Copia de ${data?.U_description}`;
+      fields.brandId = data?.U_brand_id;
+      fields.models = data?.models;
+      fields.providerCode = data?.U_provider_code;
+      fields.currency = data?.U_currency;
+    } else if (mode != "CREATE") {
       fields.mrpCode = data?.U_mrp_code;
       fields.description = data?.U_description;
       fields.brandId = data?.U_brand_id;
@@ -693,6 +711,11 @@ const MrpForm = ({
       )?.CardName;
 
       if (isCreate) {
+        // Duplicate sources its detail from the fetched detailData (like EDIT)
+        // instead of a freshly-calculated stockSummary; field names differ
+        // between the two shapes, so the detail mapping branches on isEditLike.
+        const sourceItems = isEditLike ? detailData : stockSummary;
+
         const mrp = {
           mrpCode: values.mrpCode,
           description: values.description,
@@ -701,12 +724,12 @@ const MrpForm = ({
           providerCode: values.providerCode,
           providerName,
           priceTotal: Math.round(
-            stockSummary.reduce((acc, item) => acc + getRowPrice(item), 0)
+            sourceItems.reduce((acc, item) => acc + getRowPrice(item), 0)
           ),
           currency: values.currency,
           leadtime: 6,
           suggestedAmount: Math.round(
-            stockSummary.reduce((acc, item) => acc + getRowAmount(item), 0)
+            sourceItems.reduce((acc, item) => acc + getRowAmount(item), 0)
           ),
           startYear: values.year - 1,
           startMonth: values.month,
@@ -718,45 +741,89 @@ const MrpForm = ({
           lastModifiedBy: session?.userData?.UserName,
           status: "OPENED",
           printedTimes: 0,
-          detail: stockSummary.map((item) => {
-            let sales = {};
-            let i = 0;
-            for (let t of item.amounts) {
-              let suffix = `${i + 1}`.padStart(2, "0");
-              sales[`sales${suffix}`] = t;
-              i++;
-            }
+          detail: isEditLike
+            ? detailData.map((item) => ({
+                itemCode: item.item_code,
+                factoryItemCode: item.factory_item_code || "",
+                description: item.detail_description?.replace(/'/g, "''"),
+                factoryDetailDescription:
+                  item.factory_detail_description?.replace(/'/g, "''"),
+                alternativeReferences: item.alternative_references || "",
+                model: item.model?.replace(/'/g, "''") || "",
+                invStock: parseFloat(item.inv_stock),
+                invTransit: parseFloat(item.inv_transit),
+                frequency: "MEDIA",
+                rating: "B",
+                price: parseFloat(item.last_purchase_price),
+                actualPrice: parseFloat(
+                  item.price || item.last_purchase_price
+                ),
+                currency: values.currency,
+                avgDemand: item.avg_demand,
+                demandVariance: getCalculations(item).salesVariance || 0,
+                leadtimeVariance: getCalculations(item).leadtimeVariance || 0,
+                standardDeviation:
+                  getCalculations(item).standardDeviation || 0,
+                safetyStock: getCalculations(item).safetyStock || 0,
+                reorderPoint: item.reorder_point,
+                suggestedAmount: item.detail_suggested_amount,
+                orderAmount: getRowAmount(item),
+                lineTotal: getRowPrice(item),
+                sales01: item.sales_01,
+                sales02: item.sales_02,
+                sales03: item.sales_03,
+                sales04: item.sales_04,
+                sales05: item.sales_05,
+                sales06: item.sales_06,
+                sales07: item.sales_07,
+                sales08: item.sales_08,
+                sales09: item.sales_09,
+                sales10: item.sales_10,
+                sales11: item.sales_11,
+                sales12: item.sales_12,
+                isIncluded: item.is_included || "Y",
+              }))
+            : stockSummary.map((item) => {
+                let sales = {};
+                let i = 0;
+                for (let t of item.amounts) {
+                  let suffix = `${i + 1}`.padStart(2, "0");
+                  sales[`sales${suffix}`] = t;
+                  i++;
+                }
 
-            return {
-              itemCode: item.item_code,
-              factoryItemCode: item.factory_item_code || "",
-              description: item.description?.replace(/'/g, "''"),
-              factoryDetailDescription: item.factory_description?.replace(
-                /'/g,
-                "''"
-              ),
-              alternativeReferences: "",
-              model: item.model?.replace(/'/g, "''") || "",
-              invStock: parseFloat(item.inv_stock),
-              invTransit: parseFloat(item.inv_transit),
-              frequency: "MEDIA",
-              rating: "B",
-              price: parseFloat(item.last_purchase_price),
-              actualPrice: parseFloat(item.price || item.last_purchase_price),
-              currency: values.currency,
-              avgDemand: getCalculations(item).avgDemand,
-              demandVariance: getCalculations(item).salesVariance,
-              leadtimeVariance: getCalculations(item).leadtimeVariance,
-              standardDeviation: getCalculations(item).standardDeviation,
-              safetyStock: getCalculations(item).safetyStock,
-              reorderPoint: getCalculations(item).reorderPoint,
-              suggestedAmount: getCalculations(item).suggestedAmount,
-              orderAmount: getRowAmount(item),
-              lineTotal: getRowPrice(item),
-              ...sales,
-              isIncluded: "Y",
-            };
-          }),
+                return {
+                  itemCode: item.item_code,
+                  factoryItemCode: item.factory_item_code || "",
+                  description: item.description?.replace(/'/g, "''"),
+                  factoryDetailDescription: item.factory_description?.replace(
+                    /'/g,
+                    "''"
+                  ),
+                  alternativeReferences: "",
+                  model: item.model?.replace(/'/g, "''") || "",
+                  invStock: parseFloat(item.inv_stock),
+                  invTransit: parseFloat(item.inv_transit),
+                  frequency: "MEDIA",
+                  rating: "B",
+                  price: parseFloat(item.last_purchase_price),
+                  actualPrice: parseFloat(
+                    item.price || item.last_purchase_price
+                  ),
+                  currency: values.currency,
+                  avgDemand: getCalculations(item).avgDemand,
+                  demandVariance: getCalculations(item).salesVariance,
+                  leadtimeVariance: getCalculations(item).leadtimeVariance,
+                  standardDeviation: getCalculations(item).standardDeviation,
+                  safetyStock: getCalculations(item).safetyStock,
+                  reorderPoint: getCalculations(item).reorderPoint,
+                  suggestedAmount: getCalculations(item).suggestedAmount,
+                  orderAmount: getRowAmount(item),
+                  lineTotal: getRowPrice(item),
+                  ...sales,
+                  isIncluded: "Y",
+                };
+              }),
         };
 
         console.log(mrp);
@@ -895,7 +962,12 @@ const MrpForm = ({
   useEffect(() => {
     const loadDetailData = async () => {
       setIsLoading(true);
-      if (mode == "EDIT") {
+
+      if (mode == "DUPLICATE") {
+        handleMrpCodeChange(form.values.brandId);
+      }
+
+      if (isEditLike) {
         getMrpDetailApi({ mrpId: data.U_mrp_id })
           .then((detail) => {
             const newData = [];
@@ -929,7 +1001,7 @@ const MrpForm = ({
 
   const filterData = () => {
     let arr = [];
-    if (mode == "CREATE") {
+    if (!isEditLike) {
       arr = [...stockSummary];
     } else {
       arr = [...detailData];
@@ -969,8 +1041,8 @@ const MrpForm = ({
       const sm = await getStockSummaryApi({
         year: form.values.year,
         month: form.values.month,
-        brand: isCreate ? brandName : data.U_brand_code,
-        models: isCreate ? form.values.models || "" : data.U_models || "",
+        brand: !isEditLike ? brandName : data.U_brand_code,
+        models: !isEditLike ? form.values.models || "" : data.U_models || "",
       });
       setIsLoading(false);
 
@@ -991,7 +1063,7 @@ const MrpForm = ({
         })(),
       }));
 
-      if (isCreate) {
+      if (!isEditLike) {
         setStockSummary(arr);
       } else {
         let newArr = [];
@@ -1092,7 +1164,7 @@ const MrpForm = ({
 
   const handleUpdate = (id, value, type, targetElementId) => {
     let arr = [];
-    if (isCreate) {
+    if (!isEditLike) {
       arr = [...stockSummary];
     } else {
       arr = [...detailData];
@@ -1114,9 +1186,9 @@ const MrpForm = ({
         break;
     }
 
-    isCreate ? setStockSummary(arr) : setDetailData(arr);
+    !isEditLike ? setStockSummary(arr) : setDetailData(arr);
 
-    if (isCreate == false) {
+    if (isEditLike) {
       let tempUpdate = [...toUpdate];
       let prevIndex = tempUpdate.findIndex(
         (item) => item.item_code == arr[index].item_code
@@ -1225,7 +1297,7 @@ const MrpForm = ({
     const arr = [];
 
     let tmpArr = [...months];
-    if (mode == "EDIT") {
+    if (isEditLike) {
       tmpArr = Array(12).fill(0);
     }
 
@@ -1247,7 +1319,7 @@ const MrpForm = ({
         width: dt.width.amount_detail,
         dataKey: `sales_${suffix}`,
         cellRenderer: (row, dataKey) =>
-          isCreate ? (
+          !isEditLike ? (
             <div data-id="detail">
               {currencyFormat(row.amounts[index], false, 0)}
             </div>
@@ -1279,7 +1351,7 @@ const MrpForm = ({
 
   const sortDtData = (key) => {
     let arr = [];
-    if (isCreate) {
+    if (!isEditLike) {
       arr = [...stockSummary];
     } else {
       arr = [...detailData];
@@ -1301,7 +1373,7 @@ const MrpForm = ({
 
     arr = orderBy(arr, key, order);
 
-    isCreate ? setStockSummary(arr) : setDetailData(arr);
+    !isEditLike ? setStockSummary(arr) : setDetailData(arr);
   };
 
   const headerRenderer = (dataKey, label) => {
@@ -1365,9 +1437,9 @@ const MrpForm = ({
     {
       label: "Description",
       width: dt.width.description,
-      dataKey: isCreate ? "description" : "detail_description",
+      dataKey: !isEditLike ? "description" : "detail_description",
       cellRenderer: (row, dataKey) =>
-        isCreate ? row.description : row.detail_description,
+        !isEditLike ? row.description : row.detail_description,
     },
     {
       label: "Modelo",
@@ -1399,9 +1471,9 @@ const MrpForm = ({
     {
       label: "INV + TRAN",
       width: dt.width.amount,
-      dataKey: isCreate ? "invTrans" : "sum_inv_trans",
+      dataKey: !isEditLike ? "invTrans" : "sum_inv_trans",
       cellRenderer: (row) =>
-        isCreate
+        !isEditLike
           ? currencyFormat(parseFloat(row.invTrans), false, 0)
           : currencyFormat(parseFloat(row.sum_inv_trans), false, 0),
     },
@@ -1410,7 +1482,7 @@ const MrpForm = ({
     {
       label: "Promedio venta",
       width: dt.width.amount,
-      dataKey: isCreate ? "avgDemand" : "avg_demand",
+      dataKey: !isEditLike ? "avgDemand" : "avg_demand",
       cellRenderer: (row, dataKey) =>
         Math.round(row[dataKey]) == 0
           ? currencyFormat(parseFloat(row[dataKey])?.toFixed(2), false, 0)
@@ -1419,13 +1491,13 @@ const MrpForm = ({
     {
       label: "Meses Inventario",
       width: dt.width.amount,
-      dataKey: isCreate ? "avgDemand" : "avg_demand",
+      dataKey: !isEditLike ? "avgDemand" : "avg_demand",
       cellRenderer: (row, dataKey) => {
         if (row[dataKey] <= 0) {
           return "-";
         }
 
-        if (isCreate) {
+        if (!isEditLike) {
           //dataKey: isCreate ? "invTrans" : "sum_inv_trans",
           return currencyFormat(
             Math.round(row.invTrans / row[dataKey]),
@@ -1444,9 +1516,9 @@ const MrpForm = ({
     {
       label: "Punto reorden",
       width: dt.width.amount,
-      dataKey: isCreate ? "reorderPoint" : "reorder_point",
+      dataKey: !isEditLike ? "reorderPoint" : "reorder_point",
       cellRenderer: (row, dataKey) =>
-        isCreate
+        !isEditLike
           ? currencyFormat(
               Math.round(hadlePriceSuggestion(row).reorderPoint),
               false,
@@ -1457,9 +1529,9 @@ const MrpForm = ({
     {
       label: "Sugerido",
       width: dt.width.amount,
-      dataKey: isCreate ? "suggestedAmount" : "detail_suggested_amount",
+      dataKey: !isEditLike ? "suggestedAmount" : "detail_suggested_amount",
       cellRenderer: (row, dataKey) =>
-        isCreate
+        !isEditLike
           ? Math.round(hadlePriceSuggestion(row).suggestedAmount)
           : Math.round(Number(row.detail_suggested_amount)),
     },
@@ -1508,7 +1580,7 @@ const MrpForm = ({
     {
       label: "Total",
       width: dt.width.price,
-      dataKey: isCreate ? "lineTotal" : "line_total",
+      dataKey: !isEditLike ? "lineTotal" : "line_total",
       cellRenderer: (row, dataKey) => {
         let price = row.price || row.last_purchase_price;
         let amount =
@@ -1579,7 +1651,7 @@ const MrpForm = ({
       filename: priceFile.name,
     })
       .then((res) => {
-        if (mode == "CREATE") {
+        if (!isEditLike) {
           arr = [...stockSummary];
 
           if (refsToZero) {
@@ -1692,7 +1764,7 @@ const MrpForm = ({
                 <SearchSelect
                   customId="model-select"
                   options={
-                    mode == "CREATE"
+                    isCreate
                       ? models
                       : data?.U_models?.length > 0
                       ? data?.U_models?.split(",").map((item) => ({
@@ -1710,7 +1782,7 @@ const MrpForm = ({
                   multiple
                   defaultValue={""}
                   onChange={(item) => {
-                    if (mode == "CREATE") {
+                    if (isCreate) {
                       let modelStr = item
                         ?.map((item) => item.model.replace(/'/g, ""))
                         ?.join(",");
@@ -2043,7 +2115,7 @@ const MrpForm = ({
                   <li className="bg-slate-300 p-2 rounded-full text-center">
                     <span>A pedir </span>
                     <b className="dark-gray text-sm ">
-                      {isCreate
+                      {!isEditLike
                         ? currencyFormat(
                             stockSummary.reduce(
                               (acc, item) => acc + parseInt(item.order_amount),
@@ -2068,7 +2140,7 @@ const MrpForm = ({
                     <b className="dark-gray text-sm">
                       {" "}
                       {currencySymbol}
-                      {isCreate
+                      {!isEditLike
                         ? currencyFormat(totalCreationMrp, false)
                         : currencyFormat(totalEditionMrp, false)}
                     </b>

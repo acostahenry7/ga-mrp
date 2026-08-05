@@ -31,7 +31,9 @@ const DtMenu = ({ options = [], status }) => {
   }, []);
 
   if (status != "OPENED") {
-    options = options.filter((item) => item.id == 2 || item.id == 3);
+    options = options.filter(
+      (item) => item.id == 2 || item.id == 3 || item.id == 5
+    );
   }
 
   return (
